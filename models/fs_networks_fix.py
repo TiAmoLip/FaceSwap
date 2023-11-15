@@ -5,8 +5,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 
 import torch
 import torch.nn as nn
-# import sys
-# sys.path.append('..')
+
 from .custom_network import DeformConv
 # nn.Conv2d()
 class InstanceNorm(nn.Module):
@@ -107,15 +106,7 @@ class Generator_Adain_Upsample(nn.Module):
                                    norm_layer(512), activation)
                                    
                                    
-#####################################################################
-# for 512
-        # self.down = nn.Sequential(DeformConv(512, 1024, kernel_size=3, stride=2, padding=1),
-        #                                 norm_layer(1024), activation,
-        # DeformConv(1024,2048, kernel_size=3, stride=2, padding=1),
-        #                                 norm_layer(2048), activation)
 
-
-#####################################################################
         if self.deep:
             self.down4 = nn.Sequential(DeformConv(512, 512, kernel_size=3, stride=2, padding=1),
                                        norm_layer(512), activation)
@@ -148,12 +139,6 @@ class Generator_Adain_Upsample(nn.Module):
             DeformConv(128, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64), activation
         )
-#####################################################################
-# for 1024 input
-
-
-#####################################################################
-
 
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
 
