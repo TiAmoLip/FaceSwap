@@ -6,7 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import torch
 import torch.nn as nn
 
-from .custom_network import DeformConv
+from .custom_network import *
 # nn.Conv2d()
 class InstanceNorm(nn.Module):
     def __init__(self, epsilon=1e-8):
@@ -170,6 +170,74 @@ class Generator_Adain_Upsample(nn.Module):
         x = self.up1(x)
         features.append(x)
         x = self.last_layer(x)
+        # x = (x + 1) / 2
+
+        # return x, bot, features, dlatents
+        return x
+
+class Generator_Adain_Upsample_Plus(nn.Module):
+    def __init__(self, input_nc, output_nc, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
+        assert (n_blocks >= 0)
+        super(Generator_Adain_Upsample_Plus, self).__init__()
+
+        
+        
+        self.deep = deep
+        
+        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(input_nc, 64, kernel_size=7, padding=0),
+                                         norm_layer(64), nn.ReLU(True))
+        ### downsample
+        self.down1 = DeformConvDownSample(latent_size, 64, 128, kernel_size=3, stride=2, padding=1)
+        self.down2 = DeformConvDownSample(latent_size, 128, 256, kernel_size=3, stride=2, padding=1)
+        self.down3 = DeformConvDownSample(latent_size, 256, 512, kernel_size=3, stride=2, padding=1)
+
+        if self.deep:
+            self.down4 = DeformConvDownSample(latent_size, 512, 512, kernel_size=3, stride=2, padding=1)
+
+        ### resnet blocks
+        BN = []
+        activation = nn.LeakyReLU(0.2,True)
+        for i in range(n_blocks):
+            BN += [
+                ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation)]
+        self.BottleNeck = nn.Sequential(*BN)
+
+        if self.deep:
+            self.up4 = DeformConvUpSample(2,latent_size, 512, 512, kernel_size=3, stride=1, padding=1)
+        self.up3 = DeformConvUpSample(2,latent_size, 512, 256, kernel_size=3, stride=1, padding=1)
+        self.up2 = DeformConvUpSample(2,latent_size, 256, 128, kernel_size=3, stride=1, padding=1)
+        self.up1 = DeformConvUpSample(2,latent_size, 128, 64, kernel_size=3, stride=1, padding=1)
+
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
+
+    def forward(self, input, dlatents):
+        x = input  # 3*224*224
+
+        skip1 = self.first_layer(x)
+        skip2 = self.down1(skip1,dlatents)
+        skip3 = self.down2(skip2,dlatents)
+        if self.deep:
+            skip4 = self.down3(skip3,dlatents)
+            x = self.down4(skip4,dlatents)
+        else:
+            x = self.down3(skip3,dlatents)
+        bot = []
+        bot.append(x)
+        features = []
+        for i in range(len(self.BottleNeck)):
+            x = self.BottleNeck[i](x, dlatents)
+            bot.append(x)
+
+        if self.deep:
+            x = self.up4(x,dlatents)
+            features.append(x)
+        x = self.up3(x,dlatents)
+        features.append(x)
+        x = self.up2(x,dlatents)
+        features.append(x)
+        x = self.up1(x,dlatents)
+        features.append(x)
+        x = self.last_layer(x,dlatents)
         # x = (x + 1) / 2
 
         # return x, bot, features, dlatents

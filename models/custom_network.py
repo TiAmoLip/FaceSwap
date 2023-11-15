@@ -40,7 +40,7 @@ class DeformConvDownSample(nn.Module):
         self.dconv = IdDeformConv(latent_size,in_channels, out_channels, kernel_size, stride, padding, bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.BatchNorm2d(out_channels)
-        self.relu = nn.LeakyReLU(0.2,inplace=False)
+        self.relu = nn.LeakyReLU(0.2,inplace=True)
 
     def forward(self, x, latent_id):
         x = self.dconv(x, latent_id)
@@ -48,6 +48,7 @@ class DeformConvDownSample(nn.Module):
         x = self.norm(x)
         x = self.relu(x)
         return x
+    
 class DeformConvUpSample(nn.Module):
     def __init__(self, scaleFactor,latent_size, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,*args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -55,7 +56,7 @@ class DeformConvUpSample(nn.Module):
         self.IdDeformConv = IdDeformConv(latent_size,in_channels, out_channels, kernel_size, stride, padding, bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.BatchNorm2d(out_channels)
-        self.rl = nn.LeakyReLU(0.2,inplace=False)
+        self.rl = nn.LeakyReLU(0.2,inplace=True)
     def forward(self, x, latent_id):
         x = self.upsample(x)
         x = self.IdDeformConv(x, latent_id)
