@@ -30,6 +30,8 @@ class IdDeformConv(nn.Module):
         self.latent_injection = nn.Linear(latent_size, output_channels)
         # self.res = 
     def forward(self, input, latent):
+        if latent == None:
+            return self.dconv(input)
         latent = self.latent_injection(latent)
         return self.dconv(input) + latent.view(latent.size(0), latent.size(1), 1, 1)
     

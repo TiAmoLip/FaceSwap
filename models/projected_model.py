@@ -15,8 +15,7 @@ import torch
 import torch.nn as nn
 
 from .base_model import BaseModel
-from .fs_networks_fix import Generator_Adain_Upsample
-
+from .fs_networks_fix import Generator_Adain_Upsample,Generator_Adain_Upsample_Plus
 from pg_modules.projected_discriminator import ProjectedDiscriminator
 
 def compute_grad2(d_out, x_in):
@@ -40,7 +39,7 @@ class fsModel(BaseModel):
         self.isTrain = opt.isTrain
 
         # Generator network
-        self.netG = Generator_Adain_Upsample(input_nc=3, output_nc=3, latent_size=512, n_blocks=9, deep=opt.Gdeep)
+        self.netG = Generator_Adain_Upsample_Plus(input_nc=3, output_nc=3, latent_size=512, n_blocks=9, deep=opt.Gdeep)
         self.netG.cuda()
 
         # Id network

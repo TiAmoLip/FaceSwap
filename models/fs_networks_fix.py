@@ -217,10 +217,10 @@ class Generator_Adain_Upsample_Plus(nn.Module):
         skip2 = self.down1(skip1,dlatents)
         skip3 = self.down2(skip2,dlatents)
         if self.deep:
-            skip4 = self.down3(skip3,dlatents)
-            x = self.down4(skip4,dlatents)
+            skip4 = self.down3(skip3,None)
+            x = self.down4(skip4,None)
         else:
-            x = self.down3(skip3,dlatents)
+            x = self.down3(skip3,None)
         bot = []
         bot.append(x)
         features = []
@@ -229,15 +229,15 @@ class Generator_Adain_Upsample_Plus(nn.Module):
             bot.append(x)
 
         if self.deep:
-            x = self.up4(x,dlatents)
+            x = self.up4(x,None)
             features.append(x)
-        x = self.up3(x,dlatents)
+        x = self.up3(x,None)
         features.append(x)
         x = self.up2(x,dlatents)
         features.append(x)
         x = self.up1(x,dlatents)
         features.append(x)
-        x = self.last_layer(x,dlatents)
+        x = self.last_layer(x)
         # x = (x + 1) / 2
 
         # return x, bot, features, dlatents
