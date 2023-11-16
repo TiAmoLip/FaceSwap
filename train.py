@@ -156,7 +156,7 @@ if __name__ == '__main__':
     imagenet_std    = torch.Tensor([1, 1, 1]).view(3,1,1)
     imagenet_mean   = torch.Tensor([0., 0., 0.]).view(3,1,1)
 
-    train_loader    = GetLoader(opt.dataset,opt.batchSize,8,1234)
+    train_loader    = GetLoader(opt.dataset,opt.batchSize,2,1234)
 
     randindex = [i for i in range(opt.batchSize)]
     random.shuffle(randindex)
