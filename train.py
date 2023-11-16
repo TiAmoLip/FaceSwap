@@ -74,7 +74,6 @@ class TrainOptions:
         self.parser.add_argument("--model_name",type=str,default="simswap+=+",help="model name, can be simswap or simswap+=+")
         
 
-
         self.isTrain = True
         
     def parse(self, save=True):
