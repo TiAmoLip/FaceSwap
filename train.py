@@ -49,7 +49,7 @@ class TrainOptions:
         self.parser.add_argument('--use_tensorboard', type=str2bool, default='False')
 
         # for training
-        self.parse.add_argument('--wandb_log_freq', type=int, default=20, help='frequency of logging training losses on wandb')
+        self.parser.add_argument('--wandb_log_freq', type=int, default=20, help='frequency of logging training losses on wandb')
         self.parser.add_argument('--dataset', type=str, default="/path/to/VGGFace2", help='path to the face swapping dataset')
         self.parser.add_argument('--continue_train', type=str2bool, default='False', help='continue training: load the latest model')
         self.parser.add_argument('--load_pretrain', type=str, default='./checkpoints/simswap224_test', help='load the pretrained model from the specified location')
