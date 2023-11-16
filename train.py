@@ -14,6 +14,7 @@ import os
 import time
 import random
 import argparse
+import wandb
 import numpy as np
 
 import torch
@@ -48,6 +49,7 @@ class TrainOptions:
         self.parser.add_argument('--use_tensorboard', type=str2bool, default='False')
 
         # for training
+        self.parse.add_argument('--wandb_log_freq', type=int, default=20, help='frequency of logging training losses on wandb')
         self.parser.add_argument('--dataset', type=str, default="/path/to/VGGFace2", help='path to the face swapping dataset')
         self.parser.add_argument('--continue_train', type=str2bool, default='False', help='continue training: load the latest model')
         self.parser.add_argument('--load_pretrain', type=str, default='./checkpoints/simswap224_test', help='load the pretrained model from the specified location')
@@ -69,7 +71,7 @@ class TrainOptions:
         self.parser.add_argument("--log_frep", type=int, default=200, help='frequence for printing log information')
         self.parser.add_argument("--sample_freq", type=int, default=1000, help='frequence for sampling')
         self.parser.add_argument("--model_freq", type=int, default=10000, help='frequence for saving the model')
-
+        self.parser.add_argument("--model_name",type=str,default="simswap+=+",help="model name, can be simswap or simswap+=+")
         
 
 
@@ -106,7 +108,8 @@ if __name__ == '__main__':
 
     opt         = TrainOptions().parse()
     iter_path   = os.path.join(opt.checkpoints_dir, opt.name, 'iter.txt')
-
+    wandb.login(key="433d80a0f2ec170d67780fc27cd9d54a5039a57b")
+    wandb.init(project="simswap",config=opt)
     sample_path = os.path.join(opt.checkpoints_dir, opt.name, 'samples')
 
     if not os.path.exists(sample_path):
@@ -231,9 +234,7 @@ if __name__ == '__main__':
         ############## Display results and errors ##########
         ### print out errors
         # Print out log info
-        if (step + 1) % opt.log_frep == 0:
-            # errors = {k: v.data.item() if not isinstance(v, int) else v for k, v in loss_dict.items()}
-            errors = {
+        errors = {
                 "G_Loss":loss_Gmain.item(),
                 "G_ID":loss_G_ID.item(),
                 "G_Rec":loss_G_Rec.item(),
@@ -242,6 +243,11 @@ if __name__ == '__main__':
                 "D_real":loss_Dreal.item(),
                 "D_loss":loss_D.item()
             }
+        if (step + 1) % opt.wandb_log_freq == 0:
+            wandb.log(errors)
+        if (step + 1) % opt.log_frep == 0:
+            # errors = {k: v.data.item() if not isinstance(v, int) else v for k, v in loss_dict.items()}
+            
             # if opt.use_tensorboard:
             #     for tag, value in errors.items():
             #         logger.add_scalar(tag, value, step)
@@ -287,4 +293,4 @@ if __name__ == '__main__':
             print('saving the latest model (steps %d)' % (step+1))
             model.save(step+1)            
             np.savetxt(iter_path, (step+1, total_step), delimiter=',', fmt='%d')
-    # wandb.finish()
+    wandb.finish()

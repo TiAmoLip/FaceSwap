@@ -38,8 +38,14 @@ class fsModel(BaseModel):
         # if opt.resize_or_crop != 'none' or not opt.isTrain:  # when training at full res this causes OOM
         self.isTrain = opt.isTrain
 
+        if opt.model_name=="simswap":
+            model_k = Generator_Adain_Upsample
+        elif opt.model_name=="simswap+=+":
+            model_k = Generator_Adain_Upsample_Plus
+        else:
+            model_k = None
         # Generator network
-        self.netG = Generator_Adain_Upsample_Plus(input_nc=3, output_nc=3, latent_size=512, n_blocks=9, deep=opt.Gdeep)
+        self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=9, deep=opt.Gdeep)
         self.netG.cuda()
 
         # Id network
