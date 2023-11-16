@@ -11,8 +11,8 @@ class data_prefetcher():
         self.loader = loader
         self.dataiter = iter(loader)
         self.stream = torch.cuda.Stream()
-        self.mean = torch.tensor([0.485, 0.456, 0.406]).cuda().view(1,3,1,1)
-        self.std = torch.tensor([0.229, 0.224, 0.225]).cuda().view(1,3,1,1)
+        self.mean = torch.tensor([0., 0., 0.]).cuda().view(1,3,1,1)
+        self.std = torch.tensor([1, 1, 1]).cuda().view(1,3,1,1)
         # With Amp, it isn't necessary to manually convert data to half.
         # if args.fp16:
         #     self.mean = self.mean.half()
@@ -96,7 +96,7 @@ class SwappingDataset(data.Dataset):
 
 def GetLoader(  dataset_roots,
                 batch_size=16,
-                dataloader_workers=8,
+                dataloader_workers=2,
                 random_seed = 1234
                 ):
     """Build and return a data loader."""

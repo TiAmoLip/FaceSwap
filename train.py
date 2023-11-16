@@ -153,8 +153,8 @@ if __name__ == '__main__':
 
     loss_avg        = 0
     refresh_count   = 0
-    imagenet_std    = torch.Tensor([0.229, 0.224, 0.225]).view(3,1,1)
-    imagenet_mean   = torch.Tensor([0.485, 0.456, 0.406]).view(3,1,1)
+    imagenet_std    = torch.Tensor([1, 1, 1]).view(3,1,1)
+    imagenet_mean   = torch.Tensor([0., 0., 0.]).view(3,1,1)
 
     train_loader    = GetLoader(opt.dataset,opt.batchSize,8,1234)
 
