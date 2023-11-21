@@ -1,6 +1,8 @@
 import torchvision
 import torch
 import torch.nn as nn
+from .fs_networks_fix import InstanceNorm,ResnetBlock_Adain
+from .fs_networks_fix import ApplyStyle as AdaIn
 class DeformConv(nn.Module):
     def __init__(self, input_channels, output_channels, kernel_size, stride=1, padding=0, bias=False, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -29,7 +31,7 @@ class IdDeformConv(nn.Module):
         self.dconv = DeformConv(input_channels, output_channels, kernel_size, stride, padding, bias)
         self.latent_injection = nn.Linear(latent_size, output_channels)
         # self.res = 
-    def forward(self, input, latent):
+    def forward(self, input, latent=None):
         if latent == None:
             return self.dconv(input)
         latent = self.latent_injection(latent)
@@ -66,4 +68,175 @@ class DeformConvUpSample(nn.Module):
         x = self.norm(x)
         x = self.rl(x)
         return x
+    
+class AFFAModule(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_type = "ordinary") -> None:
+        super().__init__()
+        assert kernel_type in ["ordinary","deform"], "kernel type must be ordinary or deform"
         
+        if kernel_type == "ordinary":
+            self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+            self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        else:
+            self.conv1 = DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+            self.conv2 = DeformConv(out_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.norm = InstanceNorm()
+        self.act = nn.LeakyReLU(0.2,inplace=True)
+    def forward(self, h, z):
+        # broadcast z to h
+        z = z.view(z.size(0), z.size(1), 1, 1)
+        x = torch.concat([h, z], dim=1)
+        x = self.conv1(x)
+        x = self.act(x)
+        x = self.conv2(x)
+        x = torch.sigmoid(x)
+        return 4*x * h + (1 - 4*x) * z
+
+
+class AFFA_RB(nn.Module):
+    def __init__(self, latent_size, in_channels, out_channels, kernel_type="ordinary", sample_method="down") -> None:
+        super().__init__()
+        assert sample_method in ["down","up"], "sample method must be down or up"
+        assert kernel_type in ["ordinary","deform"], "convolution kernel type must be ordinary or deform"
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1)
+        self.affa = AFFAModule(in_channels, out_channels, kernel_type)
+        self.adain = AdaIn(latent_size, in_channels)    
+        self.act = nn.LeakyReLU(0.2,inplace=True)
+    def forward(self,h,z,w):
+        h = self.affa(h,z)
+        x = self.adain(h,w)
+        x = self.act(x)
+        x = self.conv1(x)
+        x = self.sample(x)
+        h = self.conv2(h)
+        h = self.sample(h)
+        return x + h
+        
+class DancerGenerator(nn.Module):
+    def __init__(self, input_nc, output_nc, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
+        assert (n_blocks >= 0)
+        super(Generator_Adain_Upsample_Plus, self).__init__()
+        self.deep = deep
+        
+        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(input_nc, 64, kernel_size=7, padding=0),
+                                         norm_layer(64), nn.ReLU(True))
+    
+        self.down1 = DeformConvDownSample(latent_size, 64, 128, kernel_size=3, stride=2, padding=1)
+        self.down2 = DeformConvDownSample(latent_size, 128, 256, kernel_size=3, stride=2, padding=1)
+        self.down3 = DeformConvDownSample(latent_size, 256, 512, kernel_size=3, stride=2, padding=1)
+
+        if self.deep:
+            self.down4 = DeformConvDownSample(latent_size, 512, 512, kernel_size=3, stride=2, padding=1)
+        BN = []
+        activation = nn.LeakyReLU(0.2,True)
+        for i in range(n_blocks):
+            BN += [
+                ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation)]
+        self.BottleNeck = nn.Sequential(*BN)
+        
+        self.transition = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+        
+        if self.deep:
+            self.affa4 = AFFA_RB(512, 512, 512, sample_method="up")
+        
+        self.affa3 = AFFA_RB(512, 512, 256, sample_method="up")
+        self.affa2 = AFFA_RB(512, 256, 128, sample_method="up")
+        self.affa1 = AFFA_RB(512, 128, 64, sample_method="up")
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
+    def forward(self, x, latent):
+        skip = self.first_layer(x)
+        skip1 = self.down1(skip,latent)
+        skip2 = self.down2(skip1,latent)
+        skip3 = self.down3(skip2,latent)
+        skip4 = None
+        if self.deep:
+            skip4 = self.down4(skip3,latent)
+            x = skip4
+        else:
+            x = skip3
+        bot = []
+        bot.append(x)
+        features = []
+        for i in range(len(self.BottleNeck)):
+            x = self.BottleNeck[i](x, latent)
+            bot.append(x)
+        
+        trans = self.transition(x)
+        
+        if self.deep:#skip!=None
+            x = self.affa4(trans,skip4,latent)
+        x = self.affa3(x,skip3,latent)
+        x = self.affa2(x,skip2,latent)
+        x = self.affa1(x,skip1,latent)
+        x = self.last_layer(x)
+        # x = (x + 1) / 2
+        return x
+            # features.append(x)
+            
+class Generator_Adain_Upsample_Plus(nn.Module):
+    def __init__(self, input_nc, output_nc, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
+        assert (n_blocks >= 0)
+        super(Generator_Adain_Upsample_Plus, self).__init__()
+        self.deep = deep
+        
+        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(input_nc, 64, kernel_size=7, padding=0),
+                                         norm_layer(64), nn.ReLU(True))
+        ### downsample
+        self.down1 = DeformConvDownSample(latent_size, 64, 128, kernel_size=3, stride=2, padding=1)
+        self.down2 = DeformConvDownSample(latent_size, 128, 256, kernel_size=3, stride=2, padding=1)
+        self.down3 = DeformConvDownSample(latent_size, 256, 512, kernel_size=3, stride=2, padding=1)
+
+        if self.deep:
+            self.down4 = DeformConvDownSample(latent_size, 512, 512, kernel_size=3, stride=2, padding=1)
+
+        ### resnet blocks
+        BN = []
+        activation = nn.LeakyReLU(0.2,True)
+        for i in range(n_blocks):
+            BN += [
+                ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation)]
+        self.BottleNeck = nn.Sequential(*BN)
+
+        if self.deep:
+            self.up4 = DeformConvUpSample(2,latent_size, 512, 512, kernel_size=3, stride=1, padding=1)
+        self.up3 = DeformConvUpSample(2,latent_size, 512, 256, kernel_size=3, stride=1, padding=1)
+        self.up2 = DeformConvUpSample(2,latent_size, 256, 128, kernel_size=3, stride=1, padding=1)
+        self.up1 = DeformConvUpSample(2,latent_size, 128, 64, kernel_size=3, stride=1, padding=1)
+
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
+
+    def forward(self, input, dlatents):
+        x = input  # 3*224*224
+
+        skip1 = self.first_layer(x)
+        skip2 = self.down1(skip1,dlatents)
+        skip3 = self.down2(skip2,dlatents)
+        if self.deep:
+            skip4 = self.down3(skip3,None)
+            x = self.down4(skip4,None)
+        else:
+            x = self.down3(skip3,None)
+        bot = []
+        bot.append(x)
+        features = []
+        for i in range(len(self.BottleNeck)):
+            x = self.BottleNeck[i](x, dlatents)
+            bot.append(x)
+
+        if self.deep:
+            x = self.up4(x,None)
+            features.append(x)
+        x = self.up3(x,None)
+        features.append(x)
+        x = self.up2(x,dlatents)
+        features.append(x)
+        x = self.up1(x,dlatents)
+        features.append(x)
+        x = self.last_layer(x)
+        # x = (x + 1) / 2
+
+        # return x, bot, features, dlatents
+        return x
+    

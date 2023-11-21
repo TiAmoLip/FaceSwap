@@ -242,3 +242,4 @@ class Generator_Adain_Upsample_Plus(nn.Module):
 
         # return x, bot, features, dlatents
         return x
+    
