@@ -103,6 +103,7 @@ class AFFAModule(nn.Module):
         x = torch.concat([h, z], dim=1)
         x = self.conv1(x)
         x = self.act(x)
+        x = self.norm(x)
         x = self.conv2(x)
         x = torch.sigmoid(x)
         return x * h + (1 - x) * z
@@ -180,7 +181,7 @@ class DancerGenerator(nn.Module):
         self.affa3 = AFFA_RB(latent_size = 512,in_channels = 512,out_channels= 256, sample_method="up")
         self.affa2 = AFFA_RB(latent_size= 512,in_channels= 256,out_channels= 128, sample_method="up")
         self.affa1 = AFFA_RB(latent_size = 512,in_channels= 128,out_channels= 64, sample_method="up")
-        
+        self.norm = InstanceNorm()
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
     def forward(self, x, latent):
         # x: (batch_size, 3, 224, 224)
