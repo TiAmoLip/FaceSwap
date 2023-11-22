@@ -3,6 +3,10 @@ import torch
 import torch.nn as nn
 from .fs_networks_fix import InstanceNorm,ResnetBlock_Adain
 from .fs_networks_fix import ApplyStyle as AdaIn
+
+def count_parameters(model:nn.Module):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 class DeformConv(nn.Module):
     def __init__(self, input_channels, output_channels, kernel_size, stride=1, padding=0, bias=False, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)

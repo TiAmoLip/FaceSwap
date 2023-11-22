@@ -16,7 +16,7 @@ import random
 import argparse
 import wandb
 import numpy as np
-
+from models.custom_network import count_parameters
 import torch
 import torch.nn.functional as F
 from torch.backends import cudnn
@@ -37,6 +37,7 @@ class TrainOptions:
         self.initialized = False
         
     def initialize(self):
+        self.parser.add_argument("--model_name",type=str,default="simswap+=+",help="model name, can be simswap, dancer or simswap+=+")
         self.parser.add_argument('--name', type=str, default='simswap', help='name of the experiment. It decides where to store samples and models')
         self.parser.add_argument('--gpu_ids', default='0')
         self.parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
@@ -71,7 +72,7 @@ class TrainOptions:
         self.parser.add_argument("--log_frep", type=int, default=200, help='frequence for printing log information')
         self.parser.add_argument("--sample_freq", type=int, default=1000, help='frequence for sampling')
         self.parser.add_argument("--model_freq", type=int, default=10000, help='frequence for saving the model')
-        self.parser.add_argument("--model_name",type=str,default="simswap+=+",help="model name, can be simswap or simswap+=+")
+
         
 
         self.isTrain = True
@@ -174,7 +175,7 @@ if __name__ == '__main__':
     from util.logo_class import logo_class
     logo_class.print_start_training()
     model.netD.feature_network.requires_grad_(False)
-
+    print("total model parameters: ",count_parameters(model))
     # Training Cycle
     for step in range(start, total_step):
         model.netG.train()
