@@ -70,21 +70,32 @@ class DeformConvUpSample(nn.Module):
         return x
     
 class AFFAModule(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_type = "ordinary") -> None:
+    """
+    perfrom attention fusion feature aggregation
+    
+    input_shape: (batch_size, in_channels, height, width)
+    
+    output_shape: (batch_size, in_channels, height, width)
+    
+    forward_args:
+        h: hidden feature from last layer
+        z: feature map in forward process
+    theoretically, h and z should have the same shape
+    """
+    def __init__(self, in_channels, kernel_type = "ordinary") -> None:
         super().__init__()
         assert kernel_type in ["ordinary","deform"], "kernel type must be ordinary or deform"
-        
+        # self.linproj = nn.Linear(latent_size, in_channels)
         if kernel_type == "ordinary":
-            self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
-            self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0)
+            self.conv1 = nn.Conv2d(2*in_channels, in_channels, kernel_size=3, stride=1, padding=1)
+            self.conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
         else:
-            self.conv1 = DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
-            self.conv2 = DeformConv(out_channels, out_channels, kernel_size=1, stride=1, padding=0)
+            self.conv1 = DeformConv(2*in_channels, in_channels, kernel_size=3, stride=1, padding=1)
+            self.conv2 = DeformConv(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
         self.norm = InstanceNorm()
         self.act = nn.LeakyReLU(0.2,inplace=True)
     def forward(self, h, z):
-        # broadcast z to h
-        z = z.view(z.size(0), z.size(1), 1, 1)
+
         x = torch.concat([h, z], dim=1)
         x = self.conv1(x)
         x = self.act(x)
@@ -94,15 +105,36 @@ class AFFAModule(nn.Module):
 
 
 class AFFA_RB(nn.Module):
-    def __init__(self, latent_size, in_channels, out_channels, kernel_type="ordinary", sample_method="down") -> None:
+    """
+    This is the adaptive feature fusion attention residual block in FaceDancer.
+    
+    input_shape: (batch_size, in_channels, height, width)
+    
+    output_shape: (batch_size, output_channels, height, width)
+    
+    The output_channels can be 1/2 or 2 times of in_channels depending on sample method.
+    
+    forward args:
+        h: hidden feature from last layer
+        z: feature map in encoder process
+        w: id projection vector
+    """
+    def __init__(self, latent_size, in_channels, out_channels, kernel_type="ordinary", sample_method="down", upsample_kernel="ordinary") -> None:
         super().__init__()
-        assert sample_method in ["down","up"], "sample method must be down or up"
+        assert sample_method in ["down","up","none"], "sample method must be down, none or up"
         assert kernel_type in ["ordinary","deform"], "convolution kernel type must be ordinary or deform"
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        assert upsample_kernel in ["ordinary","convolution"], "sample kernel type must be ordinary or convolution"
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
-        self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1)
-        self.affa = AFFAModule(in_channels, out_channels, kernel_type)
-        self.adain = AdaIn(latent_size, in_channels)    
+        self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1)
+        
+        if sample_method == "none":
+            self.sample = nn.Identity()
+        if upsample_kernel == "convolution" and sample_method == "up":
+            self.sample = nn.ConvTranspose2d(in_channels,out_channels,kernel_size=3,stride=2,padding=1,output_padding=1)
+        
+        self.affa = AFFAModule(in_channels, kernel_type)
+        self.adain = AdaIn(latent_size, in_channels)
         self.act = nn.LeakyReLU(0.2,inplace=True)
     def forward(self,h,z,w):
         h = self.affa(h,z)
@@ -115,9 +147,9 @@ class AFFA_RB(nn.Module):
         return x + h
         
 class DancerGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
+    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
         assert (n_blocks >= 0)
-        super(Generator_Adain_Upsample_Plus, self).__init__()
+        super(DancerGenerator, self).__init__()
         self.deep = deep
         
         self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(input_nc, 64, kernel_size=7, padding=0),
@@ -141,39 +173,37 @@ class DancerGenerator(nn.Module):
         if self.deep:
             self.affa4 = AFFA_RB(512, 512, 512, sample_method="up")
         
-        self.affa3 = AFFA_RB(512, 512, 256, sample_method="up")
-        self.affa2 = AFFA_RB(512, 256, 128, sample_method="up")
-        self.affa1 = AFFA_RB(512, 128, 64, sample_method="up")
+        self.affa3 = AFFA_RB(latent_size = 512,in_channels = 512,out_channels= 256, sample_method="up")
+        self.affa2 = AFFA_RB(latent_size= 512,in_channels= 256,out_channels= 128, sample_method="up")
+        self.affa1 = AFFA_RB(latent_size = 512,in_channels= 128,out_channels= 64, sample_method="up")
+        
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
     def forward(self, x, latent):
-        skip = self.first_layer(x)
-        skip1 = self.down1(skip,latent)
-        skip2 = self.down2(skip1,latent)
-        skip3 = self.down3(skip2,latent)
+        # x: (batch_size, 3, 224, 224)
+        skip = self.first_layer(x)# (batch_size, 64, 224, 224)
+        
+        skip1 = self.down1(skip,latent) # (batch_size, 128, 112, 112)
+        skip2 = self.down2(skip1,latent) # (batch_size, 256, 56, 56)
+        skip3 = self.down3(skip2,latent) # (batch_size, 512, 28, 28)
         skip4 = None
         if self.deep:
-            skip4 = self.down4(skip3,latent)
+            skip4 = self.down4(skip3,latent) # (batch_size, 512, 14, 14)
             x = skip4
         else:
             x = skip3
-        bot = []
-        bot.append(x)
-        features = []
+
         for i in range(len(self.BottleNeck)):
             x = self.BottleNeck[i](x, latent)
-            bot.append(x)
         
-        trans = self.transition(x)
+        trans = self.transition(x) # (batch_size, 512, 14, 14) if self.deep else (batch_size, 512, 28, 28)
         
-        if self.deep:#skip!=None
-            x = self.affa4(trans,skip4,latent)
-        x = self.affa3(x,skip3,latent)
-        x = self.affa2(x,skip2,latent)
-        x = self.affa1(x,skip1,latent)
-        x = self.last_layer(x)
-        # x = (x + 1) / 2
+        if self.deep:
+            x = self.affa4(trans,skip4,latent) # (batch_size, 512, 28, 28)
+        x = self.affa3(x,skip3,latent)# (batch_size, 256, 56, 56)
+        x = self.affa2(x,skip2,latent) # (batch_size, 128, 112, 112)
+        x = self.affa1(x,skip1,latent) # (batch_size, 64, 224, 224)
+        x = self.last_layer(x) # (batch_size, 3, 224, 224)
         return x
-            # features.append(x)
             
 class Generator_Adain_Upsample_Plus(nn.Module):
     def __init__(self, input_nc, output_nc, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
@@ -218,25 +248,14 @@ class Generator_Adain_Upsample_Plus(nn.Module):
             x = self.down4(skip4,None)
         else:
             x = self.down3(skip3,None)
-        bot = []
-        bot.append(x)
-        features = []
         for i in range(len(self.BottleNeck)):
             x = self.BottleNeck[i](x, dlatents)
-            bot.append(x)
 
         if self.deep:
-            x = self.up4(x,None)
-            features.append(x)
+            x = self.up4(x,None)    
         x = self.up3(x,None)
-        features.append(x)
         x = self.up2(x,dlatents)
-        features.append(x)
         x = self.up1(x,dlatents)
-        features.append(x)
         x = self.last_layer(x)
-        # x = (x + 1) / 2
-
-        # return x, bot, features, dlatents
         return x
     
