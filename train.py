@@ -73,7 +73,12 @@ class TrainOptions:
         self.parser.add_argument("--sample_freq", type=int, default=1000, help='frequence for sampling')
         self.parser.add_argument("--model_freq", type=int, default=10000, help='frequence for saving the model')
 
-        
+        # for generators
+        self.parser.add_argument("--kernel_type", type=str, default="ordinary", help='convolution method for generator, can be ordinary or deform')
+        self.parser.add_argument("--upsample_kernel", type=str, default="ordinary", help='upsample method for generator, can be ordinary or convolution')
+        self.parser.add_argument("--n_blocks", type=int, default=9, help='the number of id blocks')
+
+
 
         self.isTrain = True
         
@@ -179,6 +184,7 @@ if __name__ == '__main__':
     # Training Cycle
     for step in range(start, total_step):
         model.netG.train()
+        attention_score = []
         for interval in range(2):
             random.shuffle(randindex)
             src_image1, src_image2  = train_loader.next()
@@ -193,7 +199,7 @@ if __name__ == '__main__':
             latent_id       = F.normalize(latent_id, p=2, dim=1)
             if interval:
                 
-                img_fake        = model.netG(src_image1, latent_id)#(4,3,224,224)
+                img_fake,score        = model.netG(src_image1, latent_id)#(4,3,224,224)
                 gen_logits,_    = model.netD(img_fake.detach(), None)
                 loss_Dgen       = (F.relu(torch.ones_like(gen_logits) + gen_logits)).mean()
 
@@ -207,7 +213,7 @@ if __name__ == '__main__':
             else:
                 
                 # model.netD.requires_grad_(True)
-                img_fake        = model.netG(src_image1, latent_id)
+                img_fake,score        = model.netG(src_image1, latent_id)
                 # G loss
                 gen_logits,feat = model.netD(img_fake, None)
                 
@@ -241,7 +247,8 @@ if __name__ == '__main__':
                 "G_feat_match":feat_match_loss.item(),
                 "D_fake":loss_Dgen.item(),
                 "D_real":loss_Dreal.item(),
-                "D_loss":loss_D.item()
+                "D_loss":loss_D.item(),
+                "attention_score":attention_score
             }
         if (step + 1) % opt.wandb_log_freq == 0:
             wandb.log(errors)

@@ -106,7 +106,8 @@ class AFFAModule(nn.Module):
         x = self.norm(x)
         x = self.conv2(x)
         x = torch.sigmoid(x)
-        return x * h + (1 - x) * z
+        
+        return x * h + (1 - x) * z, torch.mean(x)
 
 
 class AFFA_RB(nn.Module):
@@ -129,30 +130,31 @@ class AFFA_RB(nn.Module):
         assert sample_method in ["down","up","none"], "sample method must be down, none or up"
         assert kernel_type in ["ordinary","deform"], "convolution kernel type must be ordinary or deform"
         assert upsample_kernel in ["ordinary","convolution"], "sample kernel type must be ordinary or convolution"
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
-        self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1)
+        self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1)
         
         if sample_method == "none":
             self.sample = nn.Identity()
         if upsample_kernel == "convolution" and sample_method == "up":
-            self.sample = nn.ConvTranspose2d(in_channels,out_channels,kernel_size=3,stride=2,padding=1,output_padding=1)
+            self.sample = nn.ConvTranspose2d(out_channels,out_channels,kernel_size=3,stride=2,padding=1,output_padding=1)
         
         self.affa = AFFAModule(in_channels, kernel_type)
         self.adain = AdaIn(latent_size, in_channels)
         self.act = nn.LeakyReLU(0.2,inplace=True)
     def forward(self,h,z,w):
-        h = self.affa(h,z)
+        h,m = self.affa(h,z)
         x = self.adain(h,w)
         x = self.act(x)
         x = self.conv1(x)
         x = self.sample(x)
         h = self.conv2(h)
         h = self.sample(h)
-        return x + h
+        return x + h, m
         
 class DancerGenerator(nn.Module):
-    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
+    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect',
+                 kernel_type="ordinary",upsample_method="ordinary") -> None:
         assert (n_blocks >= 0)
         super(DancerGenerator, self).__init__()
         self.deep = deep
@@ -178,9 +180,9 @@ class DancerGenerator(nn.Module):
         if self.deep:
             self.affa4 = AFFA_RB(512, 512, 512, sample_method="up")
         
-        self.affa3 = AFFA_RB(latent_size = 512,in_channels = 512,out_channels= 256, sample_method="up")
-        self.affa2 = AFFA_RB(latent_size= 512,in_channels= 256,out_channels= 128, sample_method="up")
-        self.affa1 = AFFA_RB(latent_size = 512,in_channels= 128,out_channels= 64, sample_method="up")
+        self.affa3 = AFFA_RB(latent_size = 512,in_channels = 512,out_channels= 256, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
+        self.affa2 = AFFA_RB(latent_size= 512,in_channels= 256,out_channels= 128, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
+        self.affa1 = AFFA_RB(latent_size = 512,in_channels= 128,out_channels= 64, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
         self.norm = InstanceNorm()
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
     def forward(self, x, latent):
@@ -202,13 +204,20 @@ class DancerGenerator(nn.Module):
         
         trans = self.transition(x) # (batch_size, 512, 14, 14) if self.deep else (batch_size, 512, 28, 28)
         
+        attention_score = []
+        
         if self.deep:
-            x = self.affa4(trans,skip4,latent) # (batch_size, 512, 28, 28)
-        x = self.affa3(x,skip3,latent)# (batch_size, 256, 56, 56)
-        x = self.affa2(x,skip2,latent) # (batch_size, 128, 112, 112)
-        x = self.affa1(x,skip1,latent) # (batch_size, 64, 224, 224)
-        x = self.last_layer(x) # (batch_size, 3, 224, 224)
-        return x
+            x,m = self.affa4(trans,skip4,latent) # (batch_size, 512, 28, 28)
+            attention_score.append(m)
+        x,m = self.affa3(x,skip3,latent)# (batch_size, 256, 56, 56)
+        attention_score.append(m)
+        x,m = self.affa2(x,skip2,latent) # (batch_size, 128, 112, 112)
+        attention_score.append(m)
+        x,m = self.affa1(x,skip1,latent) # (batch_size, 64, 224, 224)
+        attention_score.append(m)
+        x,m = self.last_layer(x) # (batch_size, 3, 224, 224)
+        attention_score.append(m)
+        return x,attention_score
             
 class Generator_Adain_Upsample_Plus(nn.Module):
     def __init__(self, input_nc, output_nc, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
