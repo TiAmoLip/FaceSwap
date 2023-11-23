@@ -75,7 +75,7 @@ class TrainOptions:
 
         # for generators
         self.parser.add_argument("--kernel_type", type=str, default="ordinary", help='convolution method for generator, can be ordinary or deform')
-        self.parser.add_argument("--upsample_kernel", type=str, default="ordinary", help='upsample method for generator, can be ordinary or convolution')
+        self.parser.add_argument("--upsample_method", type=str, default="ordinary", help='upsample method for generator, can be ordinary or convolution')
         self.parser.add_argument("--n_blocks", type=int, default=9, help='the number of id blocks')
 
 
