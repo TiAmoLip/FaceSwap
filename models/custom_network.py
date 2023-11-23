@@ -125,18 +125,18 @@ class AFFA_RB(nn.Module):
         z: feature map in encoder process
         w: id projection vector
     """
-    def __init__(self, latent_size, in_channels, out_channels, kernel_type="ordinary", sample_method="down", upsample_kernel="ordinary") -> None:
+    def __init__(self, latent_size, in_channels, out_channels, kernel_type="ordinary", sample_method="down", upsample_method="ordinary") -> None:
         super().__init__()
         assert sample_method in ["down","up","none"], "sample method must be down, none or up"
         assert kernel_type in ["ordinary","deform"], "convolution kernel type must be ordinary or deform"
-        assert upsample_kernel in ["ordinary","convolution"], "sample kernel type must be ordinary or convolution"
+        assert upsample_method in ["ordinary","convolution"], "sample kernel type must be ordinary or convolution"
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1)
         
         if sample_method == "none":
             self.sample = nn.Identity()
-        if upsample_kernel == "convolution" and sample_method == "up":
+        if upsample_method == "convolution" and sample_method == "up":
             self.sample = nn.ConvTranspose2d(out_channels,out_channels,kernel_size=3,stride=2,padding=1,output_padding=1)
         
         self.affa = AFFAModule(in_channels, kernel_type)
