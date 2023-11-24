@@ -70,6 +70,7 @@ class SwappingDataset(data.Dataset):
         self.dataset = []
         for dir_item in pathes:
             join_path = glob.glob(os.path.join(dir_item,'*.jpg'))
+            join_path.extend(glob.glob(os.path.join(dir_item,'*.png')))
             print("processing %s"%dir_item,end='\r')
             temp_list = []
             for item in join_path:
