@@ -171,8 +171,8 @@ class DancerGeneratorEncoder(nn.Module):
     def forward(self,x):
         features = []
         x = self.first_layer(x)
-        for i in enumerate(self.down):
-            x = self.down[i](x)
+        for i,layer in enumerate(self.down):
+            x = layer(x)
             features.append(x)
         features.reverse()# ensure that the first element is the output last layer
         return x
