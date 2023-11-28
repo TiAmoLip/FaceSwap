@@ -133,6 +133,7 @@ class AFFA_RB(nn.Module):
         assert kernel_type in ["ordinary","deform"], "convolution kernel type must be ordinary or deform"
         assert upsample_method in ["ordinary","convolution"], "sample kernel type must be ordinary or convolution"
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        
         self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1)
         
@@ -177,12 +178,13 @@ class DancerGeneratorEncoder(nn.Module):
         return x
     
 class DancerGeneratorDecoder(nn.Module):
-    def __init__(self, output_nc,latent_size, kernel_type, upsample_method) -> None:
+    def __init__(self,latent_size, kernel_type, upsample_method) -> None:
         super().__init__()
         final_channels = 512
         self.up = []
         for i in range(3):
             self.up.append(AFFA_RB(latent_size=latent_size,in_channels=final_channels//(2**i),out_channels=final_channels//(2**(i+1)),sample_method="up",upsample_method=upsample_method,kernel_type=kernel_type))
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(final_channels//8, 3, kernel_size=7, padding=0))
 
     def forward(self,x,hidden_list,z_id):
         for hidden, module in zip(hidden_list,self.up):
@@ -212,13 +214,13 @@ class DancerGenerator(nn.Module):
         # self.affa3 = AFFA_RB(latent_size = 512,in_channels = 512,out_channels= 256, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
         # self.affa2 = AFFA_RB(latent_size= 512,in_channels= 256,out_channels= 128, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
         # self.affa1 = AFFA_RB(latent_size = 512,in_channels= 128,out_channels= 64, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
-        self.dec = DancerGeneratorDecoder(output_nc,latent_size,kernel_type,upsample_method)
+        self.dec = DancerGeneratorDecoder(latent_size,kernel_type,upsample_method)
         
         self.norm = InstanceNorm()
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
     def forward(self, x, latent):
         # x: (batch_size, 3, 224, 224)
-        x = self.first_layer(x)# (batch_size, 64, 224, 224)
+        # x = self.first_layer(x)# (batch_size, 64, 224, 224)
         
         # skip1 = self.down1(skip) # (batch_size, 128, 112, 112)
         # skip2 = self.down2(skip1) # (batch_size, 256, 56, 56)
@@ -237,7 +239,7 @@ class DancerGenerator(nn.Module):
         # x,m = self.affa3(x,skip3,latent)# (batch_size, 256, 56, 56)
         # x,m = self.affa2(x,skip2,latent) # (batch_size, 128, 112, 112)
         # x,m = self.affa1(x,skip1,latent) # (batch_size, 64, 224, 224)
-        x = self.last_layer(x) # (batch_size, 3, 224, 224)
+        # x = self.last_layer(x) # (batch_size, 3, 224, 224)
         return x
 
 class DeformConvGenerator(nn.Module):
