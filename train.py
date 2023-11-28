@@ -199,7 +199,7 @@ if __name__ == '__main__':
             latent_id       = F.normalize(latent_id, p=2, dim=1)
             if interval:
                 
-                img_fake,score        = model.netG(src_image1, latent_id)#(4,3,224,224)
+                img_fake        = model.netG(src_image1, latent_id)#(4,3,224,224)
                 gen_logits,_    = model.netD(img_fake.detach(), None)
                 loss_Dgen       = (F.relu(torch.ones_like(gen_logits) + gen_logits)).mean()
 
@@ -215,7 +215,7 @@ if __name__ == '__main__':
             else:
                 
                 # model.netD.requires_grad_(True)
-                img_fake,score        = model.netG(src_image1, latent_id)
+                img_fake        = model.netG(src_image1, latent_id)
                 # G loss
                 gen_logits,feat = model.netD(img_fake, None)
                 
