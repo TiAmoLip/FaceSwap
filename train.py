@@ -207,6 +207,8 @@ if __name__ == '__main__':
                 loss_Dreal      = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
                 loss_D          = loss_Dgen + loss_Dreal
+                if (loss_D) < 0.01:
+                    np.save("generated_image.npy",img_fake.cpu().numpy())
                 optimizer_D.zero_grad()
                 loss_D.backward()
                 optimizer_D.step()

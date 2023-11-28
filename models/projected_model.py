@@ -16,7 +16,7 @@ import torch.nn as nn
 
 from .base_model import BaseModel
 from .fs_networks_fix import Generator_Adain_Upsample
-from .custom_network import Generator_Adain_Upsample_Plus,DancerGenerator
+from .custom_network import DeformConvGenerator,DancerGenerator
 from pg_modules.projected_discriminator import ProjectedDiscriminator
 
 def compute_grad2(d_out, x_in):
@@ -42,7 +42,7 @@ class fsModel(BaseModel):
         if opt.model_name=="simswap":
             model_k = Generator_Adain_Upsample
         elif opt.model_name=="simswap+=+":
-            model_k = Generator_Adain_Upsample_Plus
+            model_k = DeformConvGenerator
         elif opt.model_name=="dancer":
             model_k = DancerGenerator
         else:
