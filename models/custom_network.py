@@ -165,7 +165,7 @@ class DancerGeneratorEncoder(nn.Module):
         # self.down1 = DeformConvDownSample(initial_channels, initial_channels*2, kernel_size=3, stride=2, padding=1)
         # self.down2 = DeformConvDownSample(initial_channels*2, initial_channels*4, kernel_size=3, stride=2, padding=1)
         # self.down3 = DeformConvDownSample(initial_channels*4, initial_channels*8, kernel_size=3, stride=2, padding=1)
-        self.down = []
+        self.down = nn.ModuleList()
         for i in range(3):
             self.down.append(DeformConvDownSample(initial_channels*(2**i),initial_channels*(2**(i+1)),kernel_size=3,stride=2,padding=1))
     def forward(self,x):
@@ -181,7 +181,7 @@ class DancerGeneratorDecoder(nn.Module):
     def __init__(self,latent_size, kernel_type, upsample_method) -> None:
         super().__init__()
         final_channels = 512
-        self.up = []
+        self.up = nn.ModuleList()
         for i in range(3):
             self.up.append(AFFA_RB(latent_size=latent_size,in_channels=final_channels//(2**i),out_channels=final_channels//(2**(i+1)),sample_method="up",upsample_method=upsample_method,kernel_type=kernel_type))
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(final_channels//8, 3, kernel_size=7, padding=0))
