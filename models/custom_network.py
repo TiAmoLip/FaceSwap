@@ -174,6 +174,7 @@ class DancerGeneratorEncoder(nn.Module):
         print(x.shape)
         for i in range(len(self.down)):
             print(x.shape)
+            print(self.down[i])
             x = self.down[i](x)
             features.append(x)
         features.reverse()# ensure that the first element is the output last layer
