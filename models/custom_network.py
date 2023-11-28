@@ -48,7 +48,7 @@ class DeformConvDownSample(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False):
         super(DeformConvDownSample, self).__init__()
         self.dconv = DeformConv(in_channels, out_channels, kernel_size, stride, padding, bias)
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=2, padding=0, bias=False)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.BatchNorm2d(out_channels)
         self.relu = nn.LeakyReLU(0.2,inplace=True)
 
@@ -171,10 +171,8 @@ class DancerGeneratorEncoder(nn.Module):
     def forward(self,x):
         features = []
         x = self.first_layer(x)
-        print(x.shape)
         for i in range(len(self.down)):
-            print(x.shape)
-            print(self.down[i])
+
             x = self.down[i](x)
             features.append(x)
         features.reverse()# ensure that the first element is the output last layer
