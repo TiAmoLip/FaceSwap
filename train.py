@@ -250,7 +250,7 @@ if __name__ == '__main__':
                 "D_fake":loss_Dgen.item(),
                 "D_real":loss_Dreal.item(),
                 "D_loss":loss_D.item(),
-                "attention_score":attention_score
+                # "attention_score":attention_score
             }
         if (step + 1) % opt.wandb_log_freq == 0:
             wandb.log(errors)
