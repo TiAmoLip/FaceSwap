@@ -102,11 +102,11 @@ class fsModel(BaseModel):
 
 
 
-    def save(self, which_epoch):
-        self.save_network(self.netG, 'G', which_epoch)
-        self.save_network(self.netD, 'D', which_epoch)
-        self.save_optim(self.optimizer_G, 'G', which_epoch)
-        self.save_optim(self.optimizer_D, 'D', which_epoch)
+    def save(self, which_epoch, overlap = False):
+        self.save_network(self.netG, 'G', which_epoch if not overlap else 0)
+        self.save_network(self.netD, 'D', which_epoch if not overlap else 0)
+        self.save_optim(self.optimizer_G, 'G', which_epoch if not overlap else 0)
+        self.save_optim(self.optimizer_D, 'D', which_epoch if not overlap else 0)
         '''if self.gen_features:
             self.save_network(self.netE, 'E', which_epoch, self.gpu_ids)'''
 

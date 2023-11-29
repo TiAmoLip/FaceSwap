@@ -71,13 +71,13 @@ class TrainOptions:
         self.parser.add_argument("--total_step", type=int, default=1000000, help='total training step')
         self.parser.add_argument("--log_frep", type=int, default=200, help='frequence for printing log information')
         self.parser.add_argument("--sample_freq", type=int, default=1000, help='frequence for sampling')
-        self.parser.add_argument("--model_freq", type=int, default=10000, help='frequence for saving the model')
+        self.parser.add_argument("--model_freq", type=int, default=500, help='frequence for saving the model')
 
         # for generators
         self.parser.add_argument("--kernel_type", type=str, default="ordinary", help='convolution method for generator, can be ordinary or deform')
         self.parser.add_argument("--upsample_method", type=str, default="ordinary", help='upsample method for generator, can be ordinary or convolution')
-        self.parser.add_argument("--n_blocks", type=int, default=9, help='the number of id blocks')
-
+        self.parser.add_argument("--n_blocks", type=int, default=3, help='the number of id blocks')
+        self.parser.add_argument("--overlap", type=bool, default=False, help='whether overlap the previous saved model')
 
 
         self.isTrain = True
@@ -302,6 +302,6 @@ if __name__ == '__main__':
         ### save latest model
         if (step+1) % opt.model_freq==0:
             print('saving the latest model (steps %d)' % (step+1))
-            model.save(step+1)            
+            model.save(step+1,opt.overlap)            
             np.savetxt(iter_path, (step+1, total_step), delimiter=',', fmt='%d')
     wandb.finish()
