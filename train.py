@@ -208,7 +208,7 @@ if __name__ == '__main__':
 
                 loss_D          = loss_Dgen + loss_Dreal
                 if (loss_D) < 0.01:
-                    np.save("generated_image.npy",img_fake.cpu().numpy())
+                    np.save("generated_image.npy",img_fake.detach().cpu().numpy())
                 optimizer_D.zero_grad()
                 loss_D.backward()
                 optimizer_D.step()
