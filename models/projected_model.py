@@ -51,7 +51,7 @@ class fsModel(BaseModel):
         if opt.model_name!="dancer":
             self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep)
         else:
-            self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep,upsample_method = opt.upsample_method,kernel_type=opt.kernel_type)
+            self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, n_layers=opt.n_layers, deep=opt.Gdeep,upsample_method = opt.upsample_method,kernel_type=opt.kernel_type)
         self.netG.cuda()
 
         # Id network

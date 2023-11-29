@@ -78,6 +78,7 @@ class TrainOptions:
         self.parser.add_argument("--upsample_method", type=str, default="ordinary", help='upsample method for generator, can be ordinary or convolution')
         self.parser.add_argument("--n_blocks", type=int, default=3, help='the number of id blocks')
         self.parser.add_argument("--overlap", type=bool, default=False, help='whether overlap the previous saved model')
+        self.parser.add_argument("--n_layers", type=int, default=4, help='layers of generator encoder and decoder')
 
 
         self.isTrain = True
