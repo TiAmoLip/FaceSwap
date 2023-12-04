@@ -63,7 +63,7 @@ class TrainOptions:
         self.parser.add_argument('--lambda_id', type=float, default=10.0, help='weight for id loss')
         self.parser.add_argument('--lambda_rec', type=float, default=10.0, help='weight for reconstruction loss') 
         self.parser.add_argument('--lambda_cycle', type=float, default=5, help='weight for cycle consistance loss') 
-        self.parser.add_argument('--lambda_gp', type=float, default=1e-3, help='weight for gradient penalty loss') 
+        self.parser.add_argument('--lambda_gp', type=float, default=1e-5, help='weight for gradient penalty loss') 
 
 
         self.parser.add_argument("--Arc_path", type=str, default='arcface_model/arcface_checkpoint.tar', help="run ONNX model via TRT")
