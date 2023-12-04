@@ -46,9 +46,6 @@ class TrainOptions:
         # input/output sizes       
         self.parser.add_argument('--batchSize', type=int, default=4, help='input batch size')       
 
-        # for displays
-        self.parser.add_argument('--use_tensorboard', type=str2bool, default='False')
-
         # for training
         self.parser.add_argument('--wandb_log_freq', type=int, default=20, help='frequency of logging training losses on wandb')
         self.parser.add_argument('--dataset', type=str, default="/path/to/VGGFace2", help='path to the face swapping dataset')
@@ -64,8 +61,10 @@ class TrainOptions:
 
         # for discriminators         
         self.parser.add_argument('--lambda_feat', type=float, default=10.0, help='weight for feature matching loss')
-        self.parser.add_argument('--lambda_id', type=float, default=30.0, help='weight for id loss')
+        self.parser.add_argument('--lambda_id', type=float, default=10.0, help='weight for id loss')
         self.parser.add_argument('--lambda_rec', type=float, default=10.0, help='weight for reconstruction loss') 
+        self.parser.add_argument('--lambda_cycle', type=float, default=5, help='weight for cycle consistance loss') 
+
 
         self.parser.add_argument("--Arc_path", type=str, default='arcface_model/arcface_checkpoint.tar', help="run ONNX model via TRT")
         self.parser.add_argument("--total_step", type=int, default=1000000, help='total training step')
@@ -196,7 +195,7 @@ if __name__ == '__main__':
                 img_id = src_image2[randindex]
 
             img_id_112      = F.interpolate(img_id,size=(112,112), mode='bicubic')# (4,3,112,112)
-            latent_id       = model.netArc(img_id_112)#(4,512)
+            latent_id       = model.netArc(img_id_112)# (4,512)
             latent_id       = F.normalize(latent_id, p=2, dim=1)
             if interval:
                 
@@ -216,11 +215,20 @@ if __name__ == '__main__':
                 loss_D.backward()
                 optimizer_D.step()
             else:
+                # X_t = src_image2
+                # X_s = src_image1
                 
                 # model.netD.requires_grad_(True)
                 img_fake        = model.netG(src_image1, latent_id)
                 # G loss
                 gen_logits,feat = model.netD(img_fake, None)
+                
+                target_112 = F.interpolate(src_image2,size=(112,112), mode='bicubic')
+                id_target = model.netArc(target_112)
+                id_target = F.normalize(id_target, p=2, dim=1)
+                img_cycle = model.netG(img_fake, id_target)
+                
+                loss_cycle = model.criterionRec(img_cycle, src_image2)
                 
                 loss_Gmain      = (-gen_logits).mean()
                 img_fake_down   = F.interpolate(img_fake, size=(112,112), mode='bicubic')
@@ -229,7 +237,7 @@ if __name__ == '__main__':
                 loss_G_ID       = (1 - model.cosin_metric(latent_fake, latent_id)).mean()
                 real_feat       = model.netD.get_feature(src_image1)
                 feat_match_loss = model.criterionFeat(feat["3"],real_feat["3"]) 
-                loss_G          = loss_Gmain + loss_G_ID * opt.lambda_id + feat_match_loss * opt.lambda_feat
+                loss_G          = loss_Gmain + loss_G_ID * opt.lambda_id + feat_match_loss * opt.lambda_feat + loss_cycle* opt.lambda_cycle
                 
 
                 if step%2 == 0:
@@ -249,6 +257,7 @@ if __name__ == '__main__':
                 "G_Loss":loss_Gmain.item(),
                 "G_ID":loss_G_ID.item(),
                 "G_Rec":loss_G_Rec.item(),
+                "G_cycle":loss_cycle.item(),
                 "G_feat_match":feat_match_loss.item(),
                 "D_fake":loss_Dgen.item(),
                 "D_real":loss_Dreal.item(),
