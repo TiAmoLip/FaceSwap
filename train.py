@@ -264,7 +264,7 @@ if __name__ == '__main__':
                 "D_fake":loss_Dgen.item(),
                 "D_real":loss_Dreal.item(),
                 "D_loss":loss_D.item(),
-                "D_GP":loss_GP.item(),
+                # "D_GP":loss_GP.item(),
                 # "attention_score":attention_score
             }
         if (step + 1) % opt.wandb_log_freq == 0:
