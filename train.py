@@ -59,11 +59,11 @@ class TrainOptions:
         self.parser.add_argument('--lr', type=float, default=0.0004, help='initial learning rate for adam')
         self.parser.add_argument('--Gdeep', type=str2bool, default='False')
 
-        # for discriminators         
         self.parser.add_argument('--lambda_feat', type=float, default=10.0, help='weight for feature matching loss')
         self.parser.add_argument('--lambda_id', type=float, default=10.0, help='weight for id loss')
         self.parser.add_argument('--lambda_rec', type=float, default=10.0, help='weight for reconstruction loss') 
         self.parser.add_argument('--lambda_cycle', type=float, default=5, help='weight for cycle consistance loss') 
+        self.parser.add_argument('--lambda_gp', type=float, default=1e-2, help='weight for gradient penalty loss') 
 
 
         self.parser.add_argument("--Arc_path", type=str, default='arcface_model/arcface_checkpoint.tar', help="run ONNX model via TRT")
@@ -206,7 +206,9 @@ if __name__ == '__main__':
                 real_logits,_   = model.netD(src_image2,None)
                 loss_Dreal      = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
-                loss_D          = loss_Dgen + loss_Dreal
+                loss_GP = model._gradinet_penalty_D(model.netD,src_image2,img_fake)
+
+                loss_D          = loss_Dgen + loss_Dreal + loss_GP * opt.lambda_gp
                 if (loss_D) < 0.01:
                     np.save("generated_image.npy",img_fake.detach().cpu().numpy())
                     torch.save(model.netG.state_dict(),"/checkpoints/netG_loss0.pth")
@@ -262,6 +264,7 @@ if __name__ == '__main__':
                 "D_fake":loss_Dgen.item(),
                 "D_real":loss_Dreal.item(),
                 "D_loss":loss_D.item(),
+                "D_GP":loss_GP.item(),
                 # "attention_score":attention_score
             }
         if (step + 1) % opt.wandb_log_freq == 0:

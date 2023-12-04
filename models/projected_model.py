@@ -13,7 +13,7 @@
 
 import torch
 import torch.nn as nn
-
+from torch.autograd import Variable
 from .base_model import BaseModel
 from .fs_networks_fix import Generator_Adain_Upsample
 from .custom_network import DeformConvGenerator,DancerGenerator
@@ -129,5 +129,27 @@ class fsModel(BaseModel):
         if self.opt.verbose:
             print('update learning rate: %f -> %f' % (self.old_lr, lr))
         self.old_lr = lr
+    
+    def _gradinet_penalty_D(self, netD, img_att, img_fake):
+        # interpolate sample
+        bs = img_fake.shape[0]
+        alpha = torch.rand(bs, 1, 1, 1).expand_as(img_fake).cuda()
+        interpolated = Variable(alpha * img_att + (1 - alpha) * img_fake, requires_grad=True)
+        pred_interpolated = netD.forward(interpolated)
+        pred_interpolated = pred_interpolated[-1]
 
+        # compute gradients
+        grad = torch.autograd.grad(outputs=pred_interpolated,
+                                   inputs=interpolated,
+                                   grad_outputs=torch.ones(pred_interpolated.size()).cuda(),
+                                   retain_graph=True,
+                                   create_graph=True,
+                                   only_inputs=True)[0]
+
+        # penalize gradients
+        grad = grad.view(grad.size(0), -1)
+        grad_l2norm = torch.sqrt(torch.sum(grad ** 2, dim=1))
+        loss_d_gp = torch.mean((grad_l2norm - 1) ** 2)
+
+        return loss_d_gp
 
