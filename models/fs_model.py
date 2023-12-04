@@ -122,7 +122,7 @@ class fsModel(BaseModel):
         bs = img_fake.shape[0]
         alpha = torch.rand(bs, 1, 1, 1).expand_as(img_fake).cuda()
         interpolated = Variable(alpha * img_att + (1 - alpha) * img_fake, requires_grad=True)
-        pred_interpolated = netD.forward(interpolated)
+        pred_interpolated = netD.forward(interpolated,None)
         pred_interpolated = pred_interpolated[-1]
 
         # compute gradients
