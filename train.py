@@ -206,7 +206,7 @@ if __name__ == '__main__':
                 real_logits,_   = model.netD(src_image2,None)
                 loss_Dreal      = (F.relu(torch.ones_like(real_logits) - real_logits)).mean()
 
-                loss_GP = model._gradinet_penalty_D(model.netD,src_image2,img_fake)
+                loss_GP = model._gradinet_penalty_D(model.netD.discriminator,src_image2,img_fake)
 
                 loss_D          = loss_Dgen + loss_Dreal + loss_GP * opt.lambda_gp
                 if (loss_D) < 0.01:
