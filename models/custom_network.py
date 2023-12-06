@@ -205,6 +205,13 @@ class DancerGenerator(nn.Module):
         super(DancerGenerator, self).__init__()
         self.deep = deep
         
+        self.latent_project = nn.Sequential(
+            nn.Linear(latent_size, 512),
+            nn.LeakyReLU(True),
+            nn.Linear(512, latent_size),
+            nn.LeakyReLU(True),
+        )
+        
         self.enc = DancerGeneratorEncoder(input_nc, n_layers)
         self.enc_norm = norm_layer(512)
         BN = []
