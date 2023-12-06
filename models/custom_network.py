@@ -239,7 +239,7 @@ class DancerGenerator(nn.Module):
         # skip1 = self.down1(skip) # (batch_size, 128, 112, 112)
         # skip2 = self.down2(skip1) # (batch_size, 256, 56, 56)
         # skip3 = self.down3(skip2) # (batch_size, 512, 28, 28)
-        
+        latent = self.latent_project(latent)
         x, features = self.enc(x) # (batch_size, 512, 28, 28)
         
         for i in range(len(self.BottleNeck)):
