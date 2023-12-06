@@ -70,7 +70,7 @@ class TrainOptions:
         self.parser.add_argument("--total_step", type=int, default=1000000, help='total training step')
         self.parser.add_argument("--log_frep", type=int, default=200, help='frequence for printing log information')
         self.parser.add_argument("--sample_freq", type=int, default=1000, help='frequence for sampling')
-        self.parser.add_argument("--model_freq", type=int, default=500, help='frequence for saving the model')
+        self.parser.add_argument("--model_freq", type=int, default=2000, help='frequence for saving the model')
 
         # for generators
         self.parser.add_argument("--kernel_type", type=str, default="ordinary", help='convolution method for generator, can be ordinary or deform')
@@ -267,6 +267,10 @@ if __name__ == '__main__':
                 "D_GP":loss_GP.item()*opt.lambda_gp,
                 # "attention_score":attention_score
             }
+        if loss_D.item() == torch.nan:
+            wandb.finish()
+            exit(0)
+            
         if (step + 1) % opt.wandb_log_freq == 0:
             wandb.log(errors)
         if (step + 1) % opt.log_frep == 0:
