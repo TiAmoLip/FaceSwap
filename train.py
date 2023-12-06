@@ -228,9 +228,11 @@ if __name__ == '__main__':
                 target_112 = F.interpolate(src_image2,size=(112,112), mode='bicubic')
                 id_target = model.netArc(target_112)
                 id_target = F.normalize(id_target, p=2, dim=1)
+                # 现在的loss_cycle是，image_fake是Gs换Gt的头，我们想做的是将image_fake提头，再换给Gt，看看Gt和换出来的图的相似性,差不多，反正凑个循环就行
+                # 但考虑到有可能输入的image_fake非常的寄，所以我们这里做的是将image_fake换src2的头，然后看看换完之后和image_fake的相似性
                 img_cycle = model.netG(img_fake, id_target)
                 
-                loss_cycle = model.criterionRec(img_cycle, src_image2)
+                loss_cycle = model.criterionRec(img_cycle, img_fake)
                 
                 loss_Gmain      = (-gen_logits).mean()
                 img_fake_down   = F.interpolate(img_fake, size=(112,112), mode='bicubic')
