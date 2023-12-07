@@ -169,7 +169,7 @@ class DancerGeneratorEncoder(nn.Module):
         return x,features
     
 class DancerGeneratorDecoder(nn.Module):
-    def __init__(self,latent_size, n_layers, kernel_type, upsample_method) -> None:
+    def __init__(self,latent_size, n_layers, kernel_type) -> None:
         super().__init__()
         final_channels = 512
         self.up = nn.ModuleList()
