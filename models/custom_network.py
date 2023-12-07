@@ -174,9 +174,9 @@ class DancerGeneratorDecoder(nn.Module):
         final_channels = 512
         self.up = nn.ModuleList()
         for i in range(n_layers-3):
-            self.up.append(AFFA_RB(latent_size=latent_size,in_channels=512,out_channels=512,sample_method="none",upsample_method=upsample_method,kernel_type=kernel_type))
+            self.up.append(AFFA_RB(latent_size=latent_size,in_channels=512,out_channels=512,sample_method="none",kernel_type=kernel_type))
         for i in range(3):
-            self.up.append(AFFA_RB(latent_size=latent_size,in_channels=final_channels//(2**i),out_channels=final_channels//(2**(i+1)),sample_method="up",upsample_method=upsample_method,kernel_type=kernel_type))
+            self.up.append(AFFA_RB(latent_size=latent_size,in_channels=final_channels//(2**i),out_channels=final_channels//(2**(i+1)),sample_method="up",kernel_type=kernel_type))
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(final_channels//8, 3, kernel_size=7, padding=0))
 
     def forward(self,x,hidden_list,z_id):
@@ -187,7 +187,7 @@ class DancerGeneratorDecoder(nn.Module):
 
 class DancerGenerator(nn.Module):
     def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, n_layers = 3, deep=False,norm_layer=InstanceNorm,padding_type='reflect',
-                 kernel_type="ordinary",upsample_method="ordinary") -> None:
+                 kernel_type="ordinary") -> None:
         assert (n_blocks >= 0)
         super(DancerGenerator, self).__init__()
         self.deep = deep
@@ -212,7 +212,7 @@ class DancerGenerator(nn.Module):
         
         self.dec_norm = norm_layer
         
-        self.dec = DancerGeneratorDecoder(latent_size, n_layers ,kernel_type,upsample_method)
+        self.dec = DancerGeneratorDecoder(latent_size, n_layers ,kernel_type)
         
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
     def forward(self, x, latent):
