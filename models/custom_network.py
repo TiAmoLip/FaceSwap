@@ -220,13 +220,13 @@ class DancerGenerator(nn.Module):
         # x = self.first_layer(x)# (batch_size, 64, 224, 224)
         
         x, features = self.enc(x) # (batch_size, 512, 28, 28)
-        x = self.enc_norm.forward(x)
+        x = self.enc_norm.forward(x = x)
         for i in range(len(self.BottleNeck)):
             x = self.BottleNeck[i](x, latent)
         
         latent = self.latent_project(latent)
         
-        x = self.dec_norm.forward(x)
+        x = self.dec_norm.forward(x = x)
         x = self.dec(x,features,latent)
         
         return x
