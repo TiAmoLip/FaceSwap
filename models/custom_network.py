@@ -145,7 +145,7 @@ class AFFA_RB(nn.Module):
         x = self.sample(x)
         h = self.conv2(h)
         h = self.sample(h)
-        return t + h
+        return x + h
         
         
 class DancerGeneratorEncoder(nn.Module):
