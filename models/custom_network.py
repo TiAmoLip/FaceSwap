@@ -138,7 +138,7 @@ class AFFA_RB(nn.Module):
         self.adain = AdaIn(latent_size, in_channels)
         self.act = nn.LeakyReLU(0.2,inplace=True)
     def forward(self,h,z,w):
-        t = self.affa(t,z)
+        t = self.affa(h,z)
         x = self.adain(t,w)
         x = self.act(x)
         x = self.conv1(x)
