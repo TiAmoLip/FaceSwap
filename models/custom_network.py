@@ -186,7 +186,7 @@ class DancerGeneratorDecoder(nn.Module):
         return x
 
 class DancerGenerator(nn.Module):
-    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, n_layers = 3, deep=False,norm_layer=InstanceNorm,padding_type='reflect',
+    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, n_layers = 3, deep=False,norm_layer=InstanceNorm(),padding_type='reflect',
                  kernel_type="ordinary") -> None:
         assert (n_blocks >= 0)
         super(DancerGenerator, self).__init__()
@@ -220,13 +220,13 @@ class DancerGenerator(nn.Module):
         # x = self.first_layer(x)# (batch_size, 64, 224, 224)
         
         x, features = self.enc(x) # (batch_size, 512, 28, 28)
-        x = self.enc_norm.forward(x = x)
+        x = self.enc_norm.forward(x)
         for i in range(len(self.BottleNeck)):
             x = self.BottleNeck[i](x, latent)
         
         latent = self.latent_project(latent)
         
-        x = self.dec_norm.forward(x = x)
+        x = self.dec_norm.forward(x)
         x = self.dec(x,features,latent)
         
         return x
