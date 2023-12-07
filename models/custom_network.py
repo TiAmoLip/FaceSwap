@@ -99,9 +99,10 @@ class AFFAModule(nn.Module):
         x = self.act(x)
         x = self.norm(x)
         x = self.conv2(x)
-        x = torch.sigmoid(x)
+        return x
+        # x = torch.sigmoid(x)
         
-        return (1 + x)/2 * h + (1 - x)/2 * z
+        # return (1 + x)/2 * h + (1 - x)/2 * z
 
 
 class AFFA_RB(nn.Module):
