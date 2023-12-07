@@ -10,15 +10,6 @@ def count_parameters(model:nn.Module):
 class DeformConv(nn.Module):
     def __init__(self, input_channels, output_channels, kernel_size, stride=1, padding=0, bias=False, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        assert isinstance(kernel_size, int) or isinstance(kernel_size, tuple)
-        assert isinstance(stride, int) or isinstance(stride, tuple)
-        assert isinstance(padding, int) or isinstance(padding, tuple)
-        assert isinstance(bias, bool)
-        assert isinstance(input_channels, int)
-        assert isinstance(output_channels, int)
-        
-        self.input_channels = input_channels
-        self.output_channels = output_channels
         self.kernel_size = kernel_size if isinstance(kernel_size, tuple) else (kernel_size, kernel_size)
         self.stride = stride if isinstance(stride, tuple) else (stride, stride)
         self.padding = padding if isinstance(padding, tuple) else (padding, padding)
@@ -93,13 +84,13 @@ class AFFAModule(nn.Module):
         super().__init__()
         assert kernel_type in ["ordinary","deform"], "kernel type must be ordinary or deform"
         # self.linproj = nn.Linear(latent_size, in_channels)
-        if kernel_type == "ordinary":
-            self.conv1 = nn.Conv2d(2*in_channels, in_channels, kernel_size=3, stride=1, padding=1)
-            self.conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        else:
-            self.conv1 = DeformConv(2*in_channels, in_channels, kernel_size=3, stride=1, padding=1)
-            self.conv2 = DeformConv(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        self.norm = nn.InstanceNorm2d(in_channels)
+        Conv = DeformConv if kernel_type == "deform" else nn.Conv2d
+        
+        
+        self.conv1 = Conv(2*in_channels, in_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2 = Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
+    
+        self.norm = InstanceNorm
         self.act = nn.LeakyReLU(0.2,inplace=True)
     def forward(self, h, z):
 
@@ -110,7 +101,7 @@ class AFFAModule(nn.Module):
         x = self.conv2(x)
         x = torch.sigmoid(x)
         
-        return x * h + (1 - x) * z
+        return (1 + x)/2 * h + (1 - x)/2 * z
 
 
 class AFFA_RB(nn.Module):
@@ -128,33 +119,33 @@ class AFFA_RB(nn.Module):
         z: feature map in encoder process
         w: id projection vector
     """
-    def __init__(self, latent_size, in_channels, out_channels, kernel_type="ordinary", sample_method="down", upsample_method="ordinary") -> None:
+    def __init__(self, latent_size, in_channels, out_channels, kernel_type="ordinary", sample_method="down") -> None:
         super().__init__()
         assert sample_method in ["down","up","none"], "sample method must be down, none or up"
         assert kernel_type in ["ordinary","deform"], "convolution kernel type must be ordinary or deform"
-        assert upsample_method in ["ordinary","convolution"], "sample kernel type must be ordinary or convolution"
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1) if kernel_type == "ordinary" else DeformConv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        
+        Conv = DeformConv if kernel_type == "deform" else nn.Conv2d        
+        self.conv1 = Conv(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         
         self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.sample = nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False) if sample_method == "up" else nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1)
         
         if sample_method == "none":
             self.sample = nn.Identity()
-        if upsample_method == "convolution" and sample_method == "up":
-            self.sample = nn.ConvTranspose2d(out_channels,out_channels,kernel_size=3,stride=2,padding=1,output_padding=1)
+
         
         self.affa = AFFAModule(in_channels, kernel_type)
         self.adain = AdaIn(latent_size, in_channels)
         self.act = nn.LeakyReLU(0.2,inplace=True)
     def forward(self,h,z,w):
-        h = self.affa(h,z)
-        x = self.adain(h,w)
+        t = self.affa(t,z)
+        x = self.adain(t,w)
         x = self.act(x)
         x = self.conv1(x)
         x = self.sample(x)
-        h = self.conv2(h)
-        h = self.sample(h)
-        return x + h
+        t = self.conv2(t)
+        t = self.sample(t)
+        return t + h
         
         
 class DancerGeneratorEncoder(nn.Module):
@@ -162,10 +153,6 @@ class DancerGeneratorEncoder(nn.Module):
         super().__init__()
         initial_channels = 64
         self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(input_nc, initial_channels, kernel_size=7, padding=0))
-        # self.down = nn.ModuleList()
-        # self.down1 = DeformConvDownSample(initial_channels, initial_channels*2, kernel_size=3, stride=2, padding=1)
-        # self.down2 = DeformConvDownSample(initial_channels*2, initial_channels*4, kernel_size=3, stride=2, padding=1)
-        # self.down3 = DeformConvDownSample(initial_channels*4, initial_channels*8, kernel_size=3, stride=2, padding=1)
         self.down = nn.ModuleList()
         for i in range(3):
             self.down.append(DeformConvDownSample(initial_channels*(2**i),initial_channels*(2**(i+1)),kernel_size=3,stride=2,padding=1))
@@ -199,7 +186,7 @@ class DancerGeneratorDecoder(nn.Module):
         return x
 
 class DancerGenerator(nn.Module):
-    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, n_layers = 3, deep=False,norm_layer=nn.InstanceNorm2d,padding_type='reflect',
+    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, n_layers = 3, deep=False,norm_layer=InstanceNorm,padding_type='reflect',
                  kernel_type="ordinary",upsample_method="ordinary") -> None:
         assert (n_blocks >= 0)
         super(DancerGenerator, self).__init__()
@@ -213,7 +200,7 @@ class DancerGenerator(nn.Module):
         )
         
         self.enc = DancerGeneratorEncoder(input_nc, n_layers)
-        self.enc_norm = norm_layer(512)
+        self.enc_norm = norm_layer
         BN = []
         activation = nn.LeakyReLU(0.2,True)
         for i in range(n_blocks):
@@ -221,39 +208,27 @@ class DancerGenerator(nn.Module):
                 ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation)]
         self.BottleNeck = nn.Sequential(*BN)
         
-        self.transition = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+        # self.transition = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
         
-        self.dec_norm = norm_layer(512)
+        self.dec_norm = norm_layer
         
-        # self.affa3 = AFFA_RB(latent_size = 512,in_channels = 512,out_channels= 256, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
-        # self.affa2 = AFFA_RB(latent_size= 512,in_channels= 256,out_channels= 128, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
-        # self.affa1 = AFFA_RB(latent_size = 512,in_channels= 128,out_channels= 64, sample_method="up",kernel_type=kernel_type,upsample_method=upsample_method)
         self.dec = DancerGeneratorDecoder(latent_size, n_layers ,kernel_type,upsample_method)
         
-        self.norm = nn.InstanceNorm2d(512)
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
     def forward(self, x, latent):
         # x: (batch_size, 3, 224, 224)
         # x = self.first_layer(x)# (batch_size, 64, 224, 224)
         
-        # skip1 = self.down1(skip) # (batch_size, 128, 112, 112)
-        # skip2 = self.down2(skip1) # (batch_size, 256, 56, 56)
-        # skip3 = self.down3(skip2) # (batch_size, 512, 28, 28)
-        latent = self.latent_project(latent)
         x, features = self.enc(x) # (batch_size, 512, 28, 28)
-        
+        x = self.enc_norm(x)
         for i in range(len(self.BottleNeck)):
             x = self.BottleNeck[i](x, latent)
         
-        x = self.transition(x) # (batch_size, 512, 14, 14) if self.deep else (batch_size, 512, 28, 28)
+        latent = self.latent_project(latent)
         
-        
+        x = self.dec_norm(x)
         x = self.dec(x,features,latent)
         
-        # x,m = self.affa3(x,skip3,latent)# (batch_size, 256, 56, 56)
-        # x,m = self.affa2(x,skip2,latent) # (batch_size, 128, 112, 112)
-        # x,m = self.affa1(x,skip1,latent) # (batch_size, 64, 224, 224)
-        # x = self.last_layer(x) # (batch_size, 3, 224, 224)
         return x
 
 class DeformConvGenerator(nn.Module):
@@ -265,9 +240,9 @@ class DeformConvGenerator(nn.Module):
         self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(input_nc, 64, kernel_size=7, padding=0),
                                          norm_layer(64), nn.ReLU(True))
         ### downsample
-        self.down1 = DeformConvDownSample(latent_size, 64, 128, kernel_size=3, stride=2, padding=1)
-        self.down2 = DeformConvDownSample(latent_size, 128, 256, kernel_size=3, stride=2, padding=1)
-        self.down3 = DeformConvDownSample(latent_size, 256, 512, kernel_size=3, stride=2, padding=1)
+        self.down1 = DeformConvDownSample(64, 128, kernel_size=3, stride=2, padding=1)
+        self.down2 = DeformConvDownSample(128, 256, kernel_size=3, stride=2, padding=1)
+        self.down3 = DeformConvDownSample(256, 512, kernel_size=3, stride=2, padding=1)
 
         if self.deep:
             self.down4 = DeformConvDownSample(latent_size, 512, 512, kernel_size=3, stride=2, padding=1)
