@@ -99,10 +99,10 @@ class AFFAModule(nn.Module):
         x = self.act(x)
         x = self.norm(x)
         x = self.conv2(x)
-        return x
-        # x = torch.sigmoid(x)
+        # return x
+        x = torch.sigmoid(x)
         
-        # return (1 + x)/2 * h + (1 - x)/2 * z
+        return (1 + x)/2 * h + (1 - x)/2 * z
 
 
 class AFFA_RB(nn.Module):
@@ -141,12 +141,14 @@ class AFFA_RB(nn.Module):
     def forward(self,h,z,w):
         t = self.affa(h,z)
         x = self.adain(t,w)
+        
         x = self.act(x)
+        x = x + h
         x = self.conv1(x)
         x = self.sample(x)
-        h = self.conv2(h)
-        h = self.sample(h)
-        return x + h
+        # h = self.conv2(h)
+        # h = self.sample(h)
+        return x
         
         
 class DancerGeneratorEncoder(nn.Module):
