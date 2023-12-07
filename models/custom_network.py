@@ -90,7 +90,7 @@ class AFFAModule(nn.Module):
         self.conv1 = Conv(2*in_channels, in_channels, kernel_size=3, stride=1, padding=1)
         self.conv2 = Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
     
-        self.norm = InstanceNorm
+        self.norm = InstanceNorm()
         self.act = nn.LeakyReLU(0.2,inplace=True)
     def forward(self, h, z):
 
