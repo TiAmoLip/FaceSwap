@@ -143,8 +143,8 @@ class AFFA_RB(nn.Module):
         x = self.act(x)
         x = self.conv1(x)
         x = self.sample(x)
-        t = self.conv2(t)
-        t = self.sample(t)
+        h = self.conv2(h)
+        h = self.sample(h)
         return t + h
         
         
