@@ -212,10 +212,10 @@ if __name__ == '__main__':
                 loss_GP = model.gradinet_penalty_D(model.netD,src_image2,img_fake)
 
                 loss_D          = loss_Dgen + loss_Dreal + loss_GP * opt.lambda_gp
-                if (loss_D) < 0.01:
+                if (loss_D) < 0.001:
                     np.save("generated_image.npy",img_fake.detach().cpu().numpy())
-                    torch.save(model.netG.state_dict(),"/checkpoints/netG_loss0.pth")
-                    torch.save(model.netD.state_dict(),"/checkpoints/netD_loss0.pth")
+                    torch.save(model.netG.state_dict(),"./checkpoints/netG_loss0.pth")
+                    torch.save(model.netD.state_dict(),"./checkpoints/netD_loss0.pth")
                 optimizer_D.zero_grad()
                 loss_D.backward()
                 optimizer_D.step()

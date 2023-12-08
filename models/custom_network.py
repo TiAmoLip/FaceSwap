@@ -36,7 +36,7 @@ class IdDeformConv(nn.Module):
     
 
 class DeformConvDownSample(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False, kernel_type="ordinary"):
         super(DeformConvDownSample, self).__init__()
         self.dconv = DeformConv(in_channels, out_channels, kernel_size, stride, padding, bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
@@ -275,7 +275,6 @@ class DeformConvGenerator(nn.Module):
             self.down.append(DeformConvDownSample(512,512,kernel_size=3,stride=1,padding=1))
         # 由于我前面输入参数的时候就让enc_layers和dec_layers
         # 所以有了这个:
-        
         
         self.baseBN = nn.ModuleList()
         activation = nn.LeakyReLU(0.2,True)
