@@ -40,18 +40,24 @@ class fsModel(BaseModel):
         self.isTrain = opt.isTrain
 
         if opt.model_name=="simswap":
-            model_k = Generator_Adain_Upsample
+            model_k = Generator_Adain_Upsample(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep)
         elif opt.model_name=="simswap+=+":
-            model_k = DeformConvGenerator
+            self.netG = DeformConvGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks)
         elif opt.model_name=="dancer":
-            model_k = DancerGenerator
+            self.netG = DancerGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks, kernel_type=opt.kernel_type)
         else:
-            model_k = None
-        # Generator network
-        if opt.model_name!="dancer":
-            self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep)
-        else:
-            self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, n_layers=opt.n_layers, deep=opt.Gdeep,kernel_type=opt.kernel_type)
+            self.netG = None
+        
+        #     model_k = DeformConvGenerator
+        # elif opt.model_name=="dancer":
+        #     model_k = DancerGenerator
+        # else:
+        #     model_k = None
+        # # Generator network
+        # if opt.model_name!="dancer":
+        #     self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep)
+        # else:
+        #     self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, n_layers=opt.n_layers, deep=opt.Gdeep,kernel_type=opt.kernel_type)
         self.netG.cuda()
 
         # Id network

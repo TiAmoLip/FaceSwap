@@ -42,6 +42,7 @@ class TrainOptions:
         self.parser.add_argument('--gpu_ids', default='0')
         self.parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
         self.parser.add_argument('--isTrain', type=str2bool, default='True')
+        self.parser.add_argument('--use_wandb', type=str2bool, default='False')
 
         # input/output sizes       
         self.parser.add_argument('--batchSize', type=int, default=4, help='input batch size')       
@@ -113,8 +114,9 @@ if __name__ == '__main__':
 
     opt         = TrainOptions().parse()
     iter_path   = os.path.join(opt.checkpoints_dir, opt.name, 'iter.txt')
-    wandb.login(key="433d80a0f2ec170d67780fc27cd9d54a5039a57b")
-    wandb.init(project="simswap",config=opt)
+    if opt.use_wandb:
+        wandb.login(key="433d80a0f2ec170d67780fc27cd9d54a5039a57b")
+        wandb.init(project="simswap",config=opt)
     sample_path = os.path.join(opt.checkpoints_dir, opt.name, 'samples')
 
     if not os.path.exists(sample_path):
@@ -268,11 +270,11 @@ if __name__ == '__main__':
                 "D_GP":loss_GP.item()*opt.lambda_gp,
                 # "attention_score":attention_score
             }
-        if loss_D.item() == torch.nan:
+        if loss_D.item() == torch.nan and opt.use_wandb:
             wandb.finish()
             exit(0)
             
-        if (step + 1) % opt.wandb_log_freq == 0:
+        if (step + 1) % opt.wandb_log_freq == 0 and opt.use_wandb:
             wandb.log(errors)
         if (step + 1) % opt.log_frep == 0:
             # errors = {k: v.data.item() if not isinstance(v, int) else v for k, v in loss_dict.items()}
@@ -322,4 +324,5 @@ if __name__ == '__main__':
             print('saving the latest model (steps %d)' % (step+1))
             model.save(step+1,opt.overlap)            
             np.savetxt(iter_path, (step+1, total_step), delimiter=',', fmt='%d')
-    wandb.finish()
+    if opt.use_wandb:
+        wandb.finish()

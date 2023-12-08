@@ -52,16 +52,16 @@ class DeformConvDownSample(nn.Module):
         return x
     
 class DeformConvUpSample(nn.Module):
-    def __init__(self, scaleFactor,latent_size, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,*args, **kwargs) -> None:
+    def __init__(self, scaleFactor, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,*args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.upsample = nn.Upsample(scale_factor=scaleFactor, mode='bilinear',align_corners=False)
-        self.IdDeformConv = IdDeformConv(latent_size,in_channels, out_channels, kernel_size, stride, padding, bias)
+        self.upsample = nn.Upsample(scale_factor=scaleFactor, mode='bilinear',align_corners=False) if scaleFactor > 1 else nn.Identity()
+        self.DeformConv = DeformConv(in_channels, out_channels, kernel_size, stride, padding, bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.InstanceNorm2d(out_channels)
         self.rl = nn.LeakyReLU(0.2,inplace=True)
-    def forward(self, x, latent_id):
+    def forward(self, x):
         x = self.upsample(x)
-        x = self.IdDeformConv(x, latent_id)
+        x = self.DeformConv(x)
         x = self.conv(x)
         x = self.norm(x)
         x = self.rl(x)
@@ -189,7 +189,7 @@ class DancerGeneratorDecoder(nn.Module):
         return x
 
 class DancerGenerator(nn.Module):
-    def __init__(self, input_nc=3, output_nc=3, latent_size=512, n_blocks=6, n_layers = 3, deep=False,norm_layer=InstanceNorm(),padding_type='reflect',
+    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=6, norm_layer=InstanceNorm(),padding_type='reflect',
                  kernel_type="ordinary") -> None:
         assert (n_blocks >= 0)
         super(DancerGenerator, self).__init__()
@@ -202,7 +202,7 @@ class DancerGenerator(nn.Module):
             nn.LeakyReLU(True),
         )
         
-        self.enc = DancerGeneratorEncoder(input_nc, n_layers)
+        self.enc = DancerGeneratorEncoder(3, enc_layers)
         self.enc_norm = norm_layer
         BN = []
         activation = nn.LeakyReLU(0.2,True)
@@ -215,9 +215,9 @@ class DancerGenerator(nn.Module):
         
         self.dec_norm = norm_layer
         
-        self.dec = DancerGeneratorDecoder(latent_size, n_layers ,kernel_type)
+        self.dec = DancerGeneratorDecoder(latent_size, dec_layers ,kernel_type)
         
-        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, 3, kernel_size=7, padding=0))
     def forward(self, x, latent):
         # x: (batch_size, 3, 224, 224)
         # x = self.first_layer(x)# (batch_size, 64, 224, 224)
@@ -227,64 +227,106 @@ class DancerGenerator(nn.Module):
         for i in range(len(self.BottleNeck)):
             x = self.BottleNeck[i](x, latent)
         
-        latent = self.latent_project(latent)
+        # latent = self.latent_project(latent)
         
         x = self.dec_norm.forward(x)
         x = self.dec(x,features,latent)
         
         return x
+    
+class FeatureFusion(nn.Module):
+    def __init__(self, input_channels = 512, feature_layers = 3) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(input_channels*feature_layers, input_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(input_channels*feature_layers, input_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv3 = nn.Conv2d(input_channels*feature_layers, input_channels, kernel_size=5, stride=1, padding=2, bias=False)
+        self.norm = InstanceNorm()
+        self.act = nn.LeakyReLU(0.2,inplace=True)
+        self.final_conv = nn.Conv2d(input_channels*3, input_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.fl = feature_layers
+        
+    def forward(self, base_feature:torch.Tensor, advance_feature:list[torch.Tensor]):
+        if self.fl == 1:
+            return base_feature
+        features = torch.cat([base_feature] + advance_feature, dim=1)
+        f1 = self.conv1(features)
+        f2 = self.conv2(features)
+        f3 = self.conv3(features)
+        features = torch.cat([f1,f2,f3], dim=1)
+        features = self.norm(features)
+        features = self.act(features)
+        features = self.final_conv(features)
+        return features
+
 
 class DeformConvGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, latent_size=512, n_blocks=6, deep=False,norm_layer=nn.BatchNorm2d,padding_type='reflect') -> None:
+    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect') -> None:
         assert (n_blocks >= 0)
         super(DeformConvGenerator, self).__init__()
-        self.deep = deep
-        
-        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(input_nc, 64, kernel_size=7, padding=0),
-                                         norm_layer(64), nn.ReLU(True))
+        initial_channels = 64
+        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(3, 64, kernel_size=7, padding=0),
+                                         norm_layer(), nn.ReLU(True))
         ### downsample
-        self.down1 = DeformConvDownSample(64, 128, kernel_size=3, stride=2, padding=1)
-        self.down2 = DeformConvDownSample(128, 256, kernel_size=3, stride=2, padding=1)
-        self.down3 = DeformConvDownSample(256, 512, kernel_size=3, stride=2, padding=1)
-
-        if self.deep:
-            self.down4 = DeformConvDownSample(latent_size, 512, 512, kernel_size=3, stride=2, padding=1)
-
-        ### resnet blocks
-        BN = []
+        
+        self.down = nn.ModuleList()
+        for i in range(3):
+            self.down.append(DeformConvDownSample(initial_channels*(2**i),initial_channels*(2**(i+1)),kernel_size=3,stride=2,padding=1))
+        for i in range(enc_layers-3):
+            self.down.append(DeformConvDownSample(512,512,kernel_size=3,stride=1,padding=1))
+        # 由于我前面输入参数的时候就让enc_layers和dec_layers
+        # 所以有了这个:
+        
+        
+        self.baseBN = nn.ModuleList()
         activation = nn.LeakyReLU(0.2,True)
         for i in range(n_blocks):
-            BN += [
-                ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation)]
-        self.BottleNeck = nn.Sequential(*BN)
+            self.baseBN.append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
+        
+        self.furtherBN = nn.ModuleDict()
+        for i in range(enc_layers-3):
+            self.furtherBN[f"{i}"] = nn.ModuleList()
+            for j in range(n_blocks):
+                self.furtherBN[f"{i}"].append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
+        
 
-        if self.deep:
-            self.up4 = DeformConvUpSample(2,latent_size, 512, 512, kernel_size=3, stride=1, padding=1)
-        self.up3 = DeformConvUpSample(2,latent_size, 512, 256, kernel_size=3, stride=1, padding=1)
-        self.up2 = DeformConvUpSample(2,latent_size, 256, 128, kernel_size=3, stride=1, padding=1)
-        self.up1 = DeformConvUpSample(2,latent_size, 128, 64, kernel_size=3, stride=1, padding=1)
+        self.fusion = FeatureFusion(512, enc_layers-2)
 
-        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, output_nc, kernel_size=7, padding=0))
 
-    def forward(self, input, dlatents):
+        # 我原本意思是，他这个每个层都输出了特征，每个层过自己的id block，直接融合，decoder不整花活了。
+        # self.up = nn.ModuleDict()
+
+        up = []
+        for i in range(dec_layers-3):
+            up.append(DeformConvUpSample(in_channels=512,out_channels=512,scaleFactor=1,kernel_size=3,stride=1,padding=1))
+
+        for i in range(3):
+            up.append(DeformConvUpSample(in_channels=512//(2**i),out_channels=512//(2**(i+1)),scaleFactor=2,kernel_size=3,stride=1,padding=1))
+        self.up = nn.Sequential(*up)
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, 3, kernel_size=7, padding=0))
+
+    def forward(self, input:torch.Tensor, dlatents):
         x = input  # 3*224*224
+        x = self.first_layer(x)
+        # x = self.down(x)
+        for i in range(len(self.down)):
+            x = self.down[i](x)
 
-        skip1 = self.first_layer(x)
-        skip2 = self.down1(skip1,dlatents)
-        skip3 = self.down2(skip2,dlatents)
-        if self.deep:
-            skip4 = self.down3(skip3,None)
-            x = self.down4(skip4,None)
-        else:
-            x = self.down3(skip3,None)
-        for i in range(len(self.BottleNeck)):
-            x = self.BottleNeck[i](x, dlatents)
 
-        if self.deep:
-            x = self.up4(x,None)    
-        x = self.up3(x,None)
-        x = self.up2(x,dlatents)
-        x = self.up1(x,dlatents)
+        for i in range(len(self.baseBN)):
+            x = self.baseBN[i](x, dlatents)
+        base_feature = x.clone()
+        
+        advance_feature = []
+        
+        for i in range(len(self.furtherBN)):
+            t = x.clone()
+            for j in range(len(self.furtherBN[f"{i}"])):
+                t = self.furtherBN[f"{i}"][j].forward(t, dlatents)
+            advance_feature.append(t)
+
+        x = self.fusion(base_feature, advance_feature)
+
+        x = self.up(x)
         x = self.last_layer(x)
         return x
 
