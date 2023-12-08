@@ -40,7 +40,7 @@ class DeformConvDownSample(nn.Module):
         super(DeformConvDownSample, self).__init__()
         assert kernel_type in ["ordinary","deform"], "kernel type must be ordinary or deform"
         Conv = DeformConv if kernel_type == "deform" else nn.Conv2d
-        self.dconv = Conv(in_channels, out_channels, kernel_size, stride, padding, bias)
+        self.dconv = Conv(in_channels=in_channels, out_channels=out_channels,kernel_size= kernel_size,stride= stride,padding= padding,bias= bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.InstanceNorm2d(out_channels)
         self.relu = nn.LeakyReLU(0.2,inplace=True)
@@ -59,7 +59,7 @@ class DeformConvUpSample(nn.Module):
         assert kernel_type in ["ordinary","deform"], "kernel type must be ordinary or deform"
         self.upsample = nn.Upsample(scale_factor=scaleFactor, mode='bilinear',align_corners=False) if scaleFactor > 1 else nn.Identity()
         Conv = DeformConv if kernel_type == "deform" else nn.Conv2d
-        self.DeformConv = Conv(in_channels, out_channels, kernel_size, stride, padding, bias)
+        self.DeformConv = Conv(in_channels=in_channels,out_channels= out_channels,kernel_size= kernel_size,stride= stride,padding= padding,bias= bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.InstanceNorm2d(out_channels)
         self.rl = nn.LeakyReLU(0.2,inplace=True)
