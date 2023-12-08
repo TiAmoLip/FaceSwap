@@ -21,24 +21,26 @@ class DeformConv(nn.Module):
     def forward(self, input):
         offsets = self.conv_offset(input)
         return self.deform_conv(input, offsets)
-class IdDeformConv(nn.Module):
-    def __init__(self, latent_size, input_channels, output_channels, kernel_size, stride=1, padding=0, bias=False) -> None:
-        super(IdDeformConv,self).__init__()
-        # self.latent_size = latent_size
-        self.dconv = DeformConv(input_channels, output_channels, kernel_size, stride, padding, bias)
-        self.latent_injection = nn.Linear(latent_size, output_channels)
-        # self.res = 
-    def forward(self, input, latent=None):
-        if latent == None:
-            return self.dconv(input)
-        latent = self.latent_injection(latent)
-        return self.dconv(input) + latent.view(latent.size(0), latent.size(1), 1, 1)
+# class IdDeformConv(nn.Module):
+#     def __init__(self, latent_size, input_channels, output_channels, kernel_size, stride=1, padding=0, bias=False) -> None:
+#         super(IdDeformConv,self).__init__()
+#         # self.latent_size = latent_size
+#         self.dconv = DeformConv(input_channels, output_channels, kernel_size, stride, padding, bias)
+#         self.latent_injection = nn.Linear(latent_size, output_channels)
+#         # self.res = 
+#     def forward(self, input, latent=None):
+#         if latent == None:
+#             return self.dconv(input)
+#         latent = self.latent_injection(latent)
+#         return self.dconv(input) + latent.view(latent.size(0), latent.size(1), 1, 1)
     
 
 class DeformConvDownSample(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False, kernel_type="ordinary"):
         super(DeformConvDownSample, self).__init__()
-        self.dconv = DeformConv(in_channels, out_channels, kernel_size, stride, padding, bias)
+        assert kernel_type in ["ordinary","deform"], "kernel type must be ordinary or deform"
+        Conv = DeformConv if kernel_type == "deform" else nn.Conv2d
+        self.dconv = Conv(in_channels, out_channels, kernel_size, stride, padding, bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.InstanceNorm2d(out_channels)
         self.relu = nn.LeakyReLU(0.2,inplace=True)
@@ -52,10 +54,12 @@ class DeformConvDownSample(nn.Module):
         return x
     
 class DeformConvUpSample(nn.Module):
-    def __init__(self, scaleFactor, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,*args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, scaleFactor, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False,kernel_type='ordinary') -> None:
+        super().__init__()
+        assert kernel_type in ["ordinary","deform"], "kernel type must be ordinary or deform"
         self.upsample = nn.Upsample(scale_factor=scaleFactor, mode='bilinear',align_corners=False) if scaleFactor > 1 else nn.Identity()
-        self.DeformConv = DeformConv(in_channels, out_channels, kernel_size, stride, padding, bias)
+        Conv = DeformConv if kernel_type == "deform" else nn.Conv2d
+        self.DeformConv = Conv(in_channels, out_channels, kernel_size, stride, padding, bias)
         self.conv = nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.norm = nn.InstanceNorm2d(out_channels)
         self.rl = nn.LeakyReLU(0.2,inplace=True)
@@ -193,7 +197,7 @@ class DancerGenerator(nn.Module):
                  kernel_type="ordinary") -> None:
         assert (n_blocks >= 0)
         super(DancerGenerator, self).__init__()
-        self.deep = deep
+
         
         self.latent_project = nn.Sequential(
             nn.Linear(latent_size, 512),
@@ -260,7 +264,7 @@ class FeatureFusion(nn.Module):
 
 
 class DeformConvGenerator(nn.Module):
-    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect') -> None:
+    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect',kernel_type = "ordinary") -> None:
         assert (n_blocks >= 0)
         super(DeformConvGenerator, self).__init__()
         initial_channels = 64
