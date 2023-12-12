@@ -87,9 +87,9 @@ class Generator_Adain_Upsample(nn.Module):
     def __init__(self, input_nc, output_nc, latent_size, n_blocks=6, deep=False,
                  norm_layer=nn.BatchNorm2d,
                  padding_type='reflect'):
-        assert (n_blocks >= 0)
+        
         super(Generator_Adain_Upsample, self).__init__()
-
+        assert (n_blocks >= 0)
         activation = nn.ReLU(True)
         
         self.deep = deep
@@ -174,3 +174,57 @@ class Generator_Adain_Upsample(nn.Module):
         # return x, bot, features, dlatents
         return x
 
+class simplifiedGenerator(nn.Module):
+    def __init__(self,input_layers, output_layers, latent_size, n_blocks=6, deep=False,
+                norm_layer=nn.InstanceNorm2d,
+                padding_type='reflect',init_channels=32) -> None:
+        super().__init__()
+        assert (n_blocks >= 0)
+        activation = nn.LeakyReLU(0.2,True)
+        
+        self.deep = deep
+        
+        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(3, init_channels, kernel_size=7, padding=0),
+                                        norm_layer(init_channels), activation)
+        
+        self.down = nn.ModuleDict()
+        for i in range(3):
+            self.down[f'layer_{i}'] = nn.Sequential(nn.Conv2d(init_channels*(2**i), init_channels*(2**(i+1)), kernel_size=3, stride=2, padding=1),
+                                    norm_layer(init_channels*(2**(i+1))), activation)
+        for i in range(3,input_layers):
+            self.down[f'layer_{i}'] = nn.Sequential(nn.Conv2d(init_channels*(2**3), init_channels*(2**3), kernel_size=3, stride=2, padding=1),
+                                    norm_layer(init_channels*(2**3)), activation)
+        
+        BN = []
+        for i in range(n_blocks):
+            BN += [
+                ResnetBlock_Adain(256, latent_size=latent_size, padding_type=padding_type, activation=activation)]
+        self.BottleNeck = nn.Sequential(*BN)
+        
+        self.up = nn.ModuleDict()
+        for i in range(3,output_layers):
+            self.up[f'layer_{i}'] = nn.Sequential(
+                nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False),
+                nn.Conv2d(init_channels*(2**3),init_channels*(2**3) , kernel_size=3, stride=1, padding=1),
+                nn.InstanceNorm2d(init_channels*(2**3)), activation
+            )
+        for i in range(3):
+            self.up[f'layer_{i}'] = nn.Sequential(
+                nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False),
+                nn.Conv2d(init_channels*(2**(i+1)), init_channels*(2**i), kernel_size=3, stride=1, padding=1),
+                nn.InstanceNorm2d(init_channels*(2**i)), activation
+            )
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(init_channels, 3, kernel_size=7, padding=0))
+        self.input_layers = input_layers
+        self.output_layers = output_layers
+    def forward(self, x, latents):
+        x = self.first_layer(x)
+        for i in range(self.input_layers):
+            x = self.down[f'layer_{i}'](x)
+        for i in range(len(self.BottleNeck)):
+            x = self.BottleNeck[i](x, latents)
+        for i in reversed(range(self.output_layers)):
+            x = self.up[f'layer_{i}'](x)
+        x = self.last_layer(x)
+        return x
+    
