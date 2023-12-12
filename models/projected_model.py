@@ -46,7 +46,7 @@ class fsModel(BaseModel):
         elif opt.model_name=="dancer":
             self.netG = DancerGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks, kernel_type=opt.kernel_type)
         elif opt.model_name == "simplified":
-            self.netG = simplifiedGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,init_channels=opt.init_channels,kernel_type=opt.kernel_type)
+            self.netG = simplifiedGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,init_channels=opt.init_channels,kernel_type=opt.kernel_type,deep=opt.Gdeep)
         else:
             self.netG = None
         
