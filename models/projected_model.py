@@ -42,11 +42,11 @@ class fsModel(BaseModel):
         if opt.model_name=="simswap":
             self.netG = Generator_Adain_Upsample(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep)
         elif opt.model_name=="simswap+=+":
-            self.netG = DeformConvGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,kernel_type=opt.kernel_type)
+            self.netG = DeformConvGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,kernel_type=opt.kernel_type,init_channels=opt.init_channels)
         elif opt.model_name=="dancer":
             self.netG = DancerGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks, kernel_type=opt.kernel_type)
         elif opt.model_name == "simplified":
-            self.netG = simplifiedGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks)
+            self.netG = simplifiedGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,init_channels=opt.init_channels,kernel_type=opt.kernel_type)
         else:
             self.netG = None
         

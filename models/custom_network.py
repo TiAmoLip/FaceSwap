@@ -264,10 +264,10 @@ class FeatureFusion(nn.Module):
 
 
 class DeformConvGenerator(nn.Module):
-    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect',kernel_type = "ordinary") -> None:
+    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect',init_channels = 64) -> None:
         assert (n_blocks >= 0)
         super(DeformConvGenerator, self).__init__()
-        initial_channels = 64
+        initial_channels = init_channels
         self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(3, 64, kernel_size=7, padding=0),
                                          norm_layer(), nn.ReLU(True))
         ### downsample
@@ -285,14 +285,14 @@ class DeformConvGenerator(nn.Module):
         for i in range(n_blocks):
             self.baseBN.append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
         
-        self.furtherBN = nn.ModuleDict()
-        for i in range(enc_layers-3):
-            self.furtherBN[f"{i}"] = nn.ModuleList()
-            for j in range(n_blocks):
-                self.furtherBN[f"{i}"].append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
+        # self.furtherBN = nn.ModuleDict()
+        # for i in range(enc_layers-3):
+        #     self.furtherBN[f"{i}"] = nn.ModuleList()
+        #     for j in range(n_blocks):
+        #         self.furtherBN[f"{i}"].append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
         
 
-        self.fusion = FeatureFusion(512, enc_layers-2)
+        # self.fusion = FeatureFusion(512, enc_layers-2)
 
 
         # 我原本意思是，他这个每个层都输出了特征，每个层过自己的id block，直接融合，decoder不整花活了。
@@ -317,17 +317,17 @@ class DeformConvGenerator(nn.Module):
 
         for i in range(len(self.baseBN)):
             x = self.baseBN[i](x, dlatents)
-        base_feature = x.clone()
+        # base_feature = x.clone()
         
-        advance_feature = []
+        # advance_feature = []
         
-        for i in range(len(self.furtherBN)):
-            t = x.clone()
-            for j in range(len(self.furtherBN[f"{i}"])):
-                t = self.furtherBN[f"{i}"][j].forward(t, dlatents)
-            advance_feature.append(t)
+        # for i in range(len(self.furtherBN)):
+        #     t = x.clone()
+        #     for j in range(len(self.furtherBN[f"{i}"])):
+        #         t = self.furtherBN[f"{i}"][j].forward(t, dlatents)
+        #     advance_feature.append(t)
 
-        x = self.fusion(base_feature, advance_feature)
+        # x = self.fusion(base_feature, advance_feature)
 
         x = self.up(x)
         x = self.last_layer(x)

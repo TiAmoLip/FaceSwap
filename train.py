@@ -79,6 +79,7 @@ class TrainOptions:
         self.parser.add_argument("--n_blocks", type=int, default=3, help='the number of id blocks')
         self.parser.add_argument("--overlap", type=bool, default=False, help='whether overlap the previous saved model')
         self.parser.add_argument("--n_layers", type=int, default=4, help='layers of generator encoder and decoder')
+        self.parser.add_argument("--init_channels", type=int, default=32, help='channels for the first layer of generator')
 
 
         self.isTrain = True

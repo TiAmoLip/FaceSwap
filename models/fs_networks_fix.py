@@ -5,7 +5,21 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 
 import torch
 import torch.nn as nn
+import torchvision
+class DeformConv(nn.Module):
+    def __init__(self, input_channels, output_channels, kernel_size, stride=1, padding=0, bias=False, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.kernel_size = kernel_size if isinstance(kernel_size, tuple) else (kernel_size, kernel_size)
+        self.stride = stride if isinstance(stride, tuple) else (stride, stride)
+        self.padding = padding if isinstance(padding, tuple) else (padding, padding)
+        self.bias = bias
+        self.conv_offset = nn.Conv2d(input_channels, 2*self.kernel_size[0]*self.kernel_size[1], kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=bias)
+        self.deform_conv = torchvision.ops.deform_conv.DeformConv2d(input_channels, output_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=bias)
 
+
+    def forward(self, input):
+        offsets = self.conv_offset(input)
+        return self.deform_conv(input, offsets)
 
 class InstanceNorm(nn.Module):
     def __init__(self, epsilon=1e-8):
@@ -235,30 +249,32 @@ class AADResBlock(nn.Module):
 class simplifiedGenerator(nn.Module):
     def __init__(self,input_layers = 5, output_layers= 5, latent_size=512, n_blocks=6,
                 norm_layer=nn.InstanceNorm2d,deep=True,
-                padding_type='reflect',init_channels=32) -> None:
+                padding_type='reflect',init_channels=32,kernel_type="ordinary") -> None:
         super().__init__()
         assert (n_blocks >= 0)
         # assert (input_layers <=5)
         self.deep = deep
         activation = nn.LeakyReLU(0.2,True)
+        assert kernel_type in ["ordinary","deform"]
+        Conv = nn.Conv2d if kernel_type=="ordinary" else DeformConv
         
         self.n_iteration = n_blocks//(input_layers-2) if input_layers>2 else 0
         
-        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(3, init_channels, kernel_size=7, padding=0),
+        self.first_layer = nn.Sequential(nn.ReflectionPad2d(3), Conv(3, init_channels, kernel_size=7, padding=0),
                                         norm_layer(init_channels), activation)
         
         self.down = nn.ModuleDict()
         for i in range(3):
-            self.down[f'layer_{i}'] = nn.Sequential(nn.Conv2d(init_channels*(2**i), init_channels*(2**(i+1)), kernel_size=3, stride=2, padding=1),
+            self.down[f'layer_{i}'] = nn.Sequential(Conv(init_channels*(2**i), init_channels*(2**(i+1)), kernel_size=3, stride=2, padding=1),
                                     norm_layer(init_channels*(2**(i+1))), activation)
         if deep:
-            self.down[f'layer_{3}'] = nn.Sequential(nn.Conv2d(init_channels*(2**3), init_channels*(2**3), kernel_size=3, stride=2, padding=1),
+            self.down[f'layer_{3}'] = nn.Sequential(Conv(init_channels*(2**3), init_channels*(2**3), kernel_size=3, stride=2, padding=1),
                                     norm_layer(init_channels*(2**3)), activation)
         else:
             self.down[f'layer_{3}'] = nn.Identity()
         # 没有想好这块stride=1还是2
-        for i in range(3+self.deep,input_layers+self.deep):
-            self.down[f'layer_{i}'] = nn.Sequential(nn.Conv2d(init_channels*(2**3), init_channels*(2**3), kernel_size=3, stride=1, padding=1),
+        for i in range(4,input_layers+1):
+            self.down[f'layer_{i}'] = nn.Sequential(Conv(init_channels*(2**3), init_channels*(2**3), kernel_size=3, stride=1, padding=1),
                                     norm_layer(init_channels*(2**3)), activation)
         
         # BN = []
@@ -276,31 +292,33 @@ class simplifiedGenerator(nn.Module):
         # for i in range(4,output_layers):
         #     self.up[f'layer_{i}'] = nn.Sequential(
         #         # nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False),
-        #         nn.Conv2d(init_channels*(2**3),init_channels*(2**3) , kernel_size=3, stride=1, padding=1),
+        #         Conv(init_channels*(2**3),init_channels*(2**3) , kernel_size=3, stride=1, padding=1),
         #         nn.InstanceNorm2d(init_channels*(2**3)), activation
         #     )
         if deep:
             self.up[f'layer_{3}'] = nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False),
-                nn.Conv2d(init_channels*(2**3),init_channels*(2**3) , kernel_size=3, stride=1, padding=1),
+                Conv(init_channels*(2**3),init_channels*(2**3) , kernel_size=3, stride=1, padding=1),
                 nn.InstanceNorm2d(init_channels*(2**3)), activation
             )
         for i in range(3):
             self.up[f'layer_{i}'] = nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear',align_corners=False),
-                nn.Conv2d(init_channels*(2**(i+1)), init_channels*(2**i), kernel_size=3, stride=1, padding=1),
+                Conv(init_channels*(2**(i+1)), init_channels*(2**i), kernel_size=3, stride=1, padding=1),
                 nn.InstanceNorm2d(init_channels*(2**i)), activation
             )
-        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), nn.Conv2d(init_channels, 3, kernel_size=7, padding=0))
+        self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), Conv(init_channels, 3, kernel_size=7, padding=0))
         self.input_layers = input_layers
         self.output_layers = output_layers
     def forward(self, x, latents):
         x = self.first_layer(x)
         x_attrs = []
         for i in range(len(self.down)):
-            if i>=self.input_layers-2 and i>=3+self.deep:
-                x_attrs.append(x)
+            # deep会额外进行一次下采样，那么此时我应该拿
+            
             x = self.down[f'layer_{i}'](x)
+            if i>=self.input_layers-2 and i>=2+self.deep:
+                x_attrs.append(x)
         # for i in range(len(self.BottleNeck)):
         #     x = self.BottleNeck[i](x, latents)
         
@@ -319,7 +337,7 @@ class simplifiedGenerator(nn.Module):
 # x = torch.randn(1,256,4,4)
 # l = torch.randn(1,512)
 # print(model(t,x,l).shape)
-# model = simplifiedGenerator(5,5,512,deep=False)
+# model = simplifiedGenerator(5,5,512,6,deep=False)
 # t = torch.randn(1,3,224,224)
 # l = torch.randn(1,512)
 # print(model(t,l).shape)
