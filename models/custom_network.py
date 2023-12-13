@@ -259,15 +259,15 @@ class DeformConvGenerator(nn.Module):
         self.baseBN = nn.ModuleList()
         activation = nn.LeakyReLU(0.2,True)
         for i in range(n_blocks):
-            self.baseBN.append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
+            self.baseBN.append(ResnetBlock_Adain(init_channels*(2**3), latent_size=latent_size, padding_type=padding_type, activation=activation))
 
 
         up = []
         for i in range(dec_layers-3):
-            up.append(DeformConvUpSample(in_channels=512,out_channels=512,scaleFactor=1,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
+            up.append(DeformConvUpSample(in_channels=init_channels*(2**3),out_channels=init_channels*(2**3),scaleFactor=1,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
 
         for i in range(3):
-            up.append(DeformConvUpSample(in_channels=512//(2**i),out_channels=512//(2**(i+1)),scaleFactor=2,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
+            up.append(DeformConvUpSample(in_channels=init_channels*(2**3)//(2**i),out_channels=init_channels*(2**3)//(2**(i+1)),scaleFactor=2,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
         self.up = nn.Sequential(*up)
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, 3, kernel_size=7, padding=0))
 
