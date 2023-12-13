@@ -274,7 +274,7 @@ class DeformConvGenerator(nn.Module):
         
         self.down = nn.ModuleList()
         for i in range(3):
-            self.down.append(DeformConvDownSample(initial_channels*(2**i),initial_channels*(2**(i+1)),kernel_size=3,stride=2,padding=1,kernel_type=kernel_type))
+            self.down.append(DeformConvDownSample(in_channels=initial_channels*(2**i),out_channels=initial_channels*(2**(i+1)),kernel_size=3,stride=2,padding=1,kernel_type=kernel_type))
         for i in range(enc_layers-3):
             self.down.append(DeformConvDownSample(512,512,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
         # 由于我前面输入参数的时候就让enc_layers和dec_layers
