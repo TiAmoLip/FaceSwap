@@ -264,7 +264,7 @@ class FeatureFusion(nn.Module):
 
 
 class DeformConvGenerator(nn.Module):
-    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect',init_channels = 64) -> None:
+    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect',init_channels = 64, kernel_type='ordinary') -> None:
         assert (n_blocks >= 0)
         super(DeformConvGenerator, self).__init__()
         initial_channels = init_channels
@@ -274,9 +274,9 @@ class DeformConvGenerator(nn.Module):
         
         self.down = nn.ModuleList()
         for i in range(3):
-            self.down.append(DeformConvDownSample(initial_channels*(2**i),initial_channels*(2**(i+1)),kernel_size=3,stride=2,padding=1))
+            self.down.append(DeformConvDownSample(initial_channels*(2**i),initial_channels*(2**(i+1)),kernel_size=3,stride=2,padding=1,kernel_type=kernel_type))
         for i in range(enc_layers-3):
-            self.down.append(DeformConvDownSample(512,512,kernel_size=3,stride=1,padding=1))
+            self.down.append(DeformConvDownSample(512,512,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
         # 由于我前面输入参数的时候就让enc_layers和dec_layers
         # 所以有了这个:
         
@@ -288,10 +288,10 @@ class DeformConvGenerator(nn.Module):
 
         up = []
         for i in range(dec_layers-3):
-            up.append(DeformConvUpSample(in_channels=512,out_channels=512,scaleFactor=1,kernel_size=3,stride=1,padding=1))
+            up.append(DeformConvUpSample(in_channels=512,out_channels=512,scaleFactor=1,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
 
         for i in range(3):
-            up.append(DeformConvUpSample(in_channels=512//(2**i),out_channels=512//(2**(i+1)),scaleFactor=2,kernel_size=3,stride=1,padding=1))
+            up.append(DeformConvUpSample(in_channels=512//(2**i),out_channels=512//(2**(i+1)),scaleFactor=2,kernel_size=3,stride=1,padding=1,kernel_type=kernel_type))
         self.up = nn.Sequential(*up)
         self.last_layer = nn.Sequential(nn.ReflectionPad2d(3), DeformConv(64, 3, kernel_size=7, padding=0))
 
