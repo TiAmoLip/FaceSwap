@@ -284,19 +284,7 @@ class DeformConvGenerator(nn.Module):
         activation = nn.LeakyReLU(0.2,True)
         for i in range(n_blocks):
             self.baseBN.append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
-        
-        # self.furtherBN = nn.ModuleDict()
-        # for i in range(enc_layers-3):
-        #     self.furtherBN[f"{i}"] = nn.ModuleList()
-        #     for j in range(n_blocks):
-        #         self.furtherBN[f"{i}"].append(ResnetBlock_Adain(512, latent_size=latent_size, padding_type=padding_type, activation=activation))
-        
 
-        # self.fusion = FeatureFusion(512, enc_layers-2)
-
-
-        # 我原本意思是，他这个每个层都输出了特征，每个层过自己的id block，直接融合，decoder不整花活了。
-        # self.up = nn.ModuleDict()
 
         up = []
         for i in range(dec_layers-3):
@@ -317,17 +305,6 @@ class DeformConvGenerator(nn.Module):
 
         for i in range(len(self.baseBN)):
             x = self.baseBN[i](x, dlatents)
-        # base_feature = x.clone()
-        
-        # advance_feature = []
-        
-        # for i in range(len(self.furtherBN)):
-        #     t = x.clone()
-        #     for j in range(len(self.furtherBN[f"{i}"])):
-        #         t = self.furtherBN[f"{i}"][j].forward(t, dlatents)
-        #     advance_feature.append(t)
-
-        # x = self.fusion(base_feature, advance_feature)
 
         x = self.up(x)
         x = self.last_layer(x)
