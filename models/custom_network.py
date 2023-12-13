@@ -8,14 +8,14 @@ def count_parameters(model:nn.Module):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 class DeformConv(nn.Module):
-    def __init__(self, input_channels, output_channels, kernel_size, stride=1, padding=0, bias=False, *args, **kwargs) -> None:
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=False, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.kernel_size = kernel_size if isinstance(kernel_size, tuple) else (kernel_size, kernel_size)
         self.stride = stride if isinstance(stride, tuple) else (stride, stride)
         self.padding = padding if isinstance(padding, tuple) else (padding, padding)
         self.bias = bias
-        self.conv_offset = nn.Conv2d(input_channels, 2*self.kernel_size[0]*self.kernel_size[1], kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=bias)
-        self.deform_conv = torchvision.ops.deform_conv.DeformConv2d(input_channels, output_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=bias)
+        self.conv_offset = nn.Conv2d(in_channels, 2*self.kernel_size[0]*self.kernel_size[1], kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=bias)
+        self.deform_conv = torchvision.ops.deform_conv.DeformConv2d(in_channels, out_channels, kernel_size=self.kernel_size, stride=self.stride, padding=self.padding, bias=bias)
 
 
     def forward(self, input):
@@ -238,30 +238,6 @@ class DancerGenerator(nn.Module):
         
         return x
     
-class FeatureFusion(nn.Module):
-    def __init__(self, input_channels = 512, feature_layers = 3) -> None:
-        super().__init__()
-        self.conv1 = nn.Conv2d(input_channels*feature_layers, input_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.conv2 = nn.Conv2d(input_channels*feature_layers, input_channels, kernel_size=1, stride=1, padding=0, bias=False)
-        self.conv3 = nn.Conv2d(input_channels*feature_layers, input_channels, kernel_size=5, stride=1, padding=2, bias=False)
-        self.norm = InstanceNorm()
-        self.act = nn.LeakyReLU(0.2,inplace=True)
-        self.final_conv = nn.Conv2d(input_channels*3, input_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.fl = feature_layers
-        
-    def forward(self, base_feature:torch.Tensor, advance_feature:list[torch.Tensor]):
-        if self.fl == 1:
-            return base_feature
-        features = torch.cat([base_feature] + advance_feature, dim=1)
-        f1 = self.conv1(features)
-        f2 = self.conv2(features)
-        f3 = self.conv3(features)
-        features = torch.cat([f1,f2,f3], dim=1)
-        features = self.norm(features)
-        features = self.act(features)
-        features = self.final_conv(features)
-        return features
-
 
 class DeformConvGenerator(nn.Module):
     def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3,norm_layer=InstanceNorm,padding_type='reflect',init_channels = 64, kernel_type='ordinary') -> None:
