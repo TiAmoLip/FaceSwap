@@ -5,6 +5,7 @@ import random
 from PIL import Image
 from torch.utils import data
 from torchvision import transforms as T
+import torch.nn.functional as F
 
 class data_prefetcher():
     def __init__(self, loader):
@@ -22,10 +23,10 @@ class data_prefetcher():
 
     def preload(self):
         try:
-            self.src_image1, self.src_image2 = next(self.dataiter)
+            self.src_image1, self.src_image2, self.idx = next(self.dataiter)
         except StopIteration:
             self.dataiter = iter(self.loader)
-            self.src_image1, self.src_image2 = next(self.dataiter)
+            self.src_image1, self.src_image2, self.idx = next(self.dataiter)
             
         with torch.cuda.stream(self.stream):
             self.src_image1  = self.src_image1.cuda(non_blocking=True)
@@ -37,8 +38,9 @@ class data_prefetcher():
         torch.cuda.current_stream().wait_stream(self.stream)
         src_image1  = self.src_image1
         src_image2  = self.src_image2
+        idx = self.idx
         self.preload()
-        return src_image1, src_image2
+        return src_image1, src_image2, idx
     
     def __len__(self):
         """Return the number of images."""
@@ -48,17 +50,17 @@ class SwappingDataset(data.Dataset):
     """Dataset class for the Artworks dataset and content dataset."""
 
     def __init__(self,
-                    image_dir,
-                    image_dir1,
+                    dataroot,
                     img_transform,
                     subffix='jpg',
                     random_seed=1234):
         """Initialize and preprocess the Swapping dataset."""
-        self.image_dir      = image_dir
-        self.image_dir1     = image_dir1
+        self.dataroot = dataroot
         self.img_transform  = img_transform   
         self.subffix        = subffix
         #self.dataset        = []
+        for _,_,files in os.walk(dataroot):
+            self.files = files
         self.random_seed    = random_seed
         #self.preprocess()
         #self.num_images = len(self.dataset)
@@ -83,15 +85,24 @@ class SwappingDataset(data.Dataset):
              
     def __getitem__(self, index):
         """Return two src domain images and two dst domain images."""
+        for file in self.files:
+            id = str(index) if index >= 10 else '0' + str(index)
+            if file.find(id) != -1:
+                if file.find('source') != -1:
+                    self.image_dir = os.path.join(self.dataroot,file)
+                else:
+                    self.image_dir1 = os.path.join(self.dataroot,file)
         image1      = self.img_transform(Image.open(self.image_dir).convert('RGB'))
+        #image1 =    F.interpolate(image1.view(1,image1.size()[0],image1.size()[1],image1.size()[2]),size=(224,224), mode='bicubic').view(image1.size()[0],224,224)
         image2      = self.img_transform(Image.open(self.image_dir1).convert('RGB'))
-        return image1, image2
+        #image2 =    F.interpolate(image2.view(1,image2.size()[0],image2.size()[1],image2.size()[2]),size=(224,224), mode='bicubic').view(image2.size()[0],224,224)
+        return image1, image2, index
     
     def __len__(self):
         """Return the number of images."""
-        return 1
+        return len(self.files)//2
 
-def GetLoader(  a_root,b_root,
+def GetLoader(  dataroot,
                 batch_size=16,
                 dataloader_workers=8,
                 random_seed = 1234
@@ -107,12 +118,11 @@ def GetLoader(  a_root,b_root,
     c_transforms = T.Compose(c_transforms)
 
     content_dataset = SwappingDataset(
-                            a_root,
-                            b_root,
+                            dataroot,
                             c_transforms,
                             "jpg",
                             random_seed)
     content_data_loader = data.DataLoader(dataset=content_dataset,batch_size=batch_size,
-                    drop_last=True,shuffle=True,num_workers=num_workers,pin_memory=True)
+                    drop_last=False,shuffle=True,num_workers=num_workers,pin_memory=True)
     prefetcher = data_prefetcher(content_data_loader)
     return prefetcher

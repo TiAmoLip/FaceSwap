@@ -35,4 +35,5 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--use_mask', action='store_true', help='Use mask for better result')
         self.parser.add_argument('--crop_size', type=int, default=512, help='Crop of size of input image')
         self.parser.add_argument('--load_pretrain', type=str, default='./checkpoints/512/', help='pretrained path')
+        self.parser.add_argument('--test_root', type=str, default='./demo_file/test_set', help='test set path')
         self.isTrain = False
