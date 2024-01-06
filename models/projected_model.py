@@ -13,10 +13,10 @@
 
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
+
 from .base_model import BaseModel
-from .fs_networks_fix import Generator_Adain_Upsample,simplifiedGenerator
-from .custom_network import DeformConvGenerator,DancerGenerator
+from .fs_networks_fix import Generator_Adain_Upsample
+
 from pg_modules.projected_discriminator import ProjectedDiscriminator
 
 def compute_grad2(d_out, x_in):
@@ -39,27 +39,8 @@ class fsModel(BaseModel):
         # if opt.resize_or_crop != 'none' or not opt.isTrain:  # when training at full res this causes OOM
         self.isTrain = opt.isTrain
 
-        if opt.model_name=="simswap":
-            self.netG = Generator_Adain_Upsample(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep)
-        elif opt.model_name=="simswap+=+":
-            self.netG = DeformConvGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,kernel_type=opt.kernel_type,init_channels=opt.init_channels)
-        elif opt.model_name=="dancer":
-            self.netG = DancerGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks, kernel_type=opt.kernel_type)
-        elif opt.model_name == "simplified":
-            self.netG = simplifiedGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,init_channels=opt.init_channels,kernel_type=opt.kernel_type,deep=opt.Gdeep)
-        else:
-            self.netG = None
-        
-        #     model_k = DeformConvGenerator
-        # elif opt.model_name=="dancer":
-        #     model_k = DancerGenerator
-        # else:
-        #     model_k = None
-        # # Generator network
-        # if opt.model_name!="dancer":
-        #     self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, deep=opt.Gdeep)
-        # else:
-        #     self.netG = model_k(input_nc=3, output_nc=3, latent_size=512, n_blocks=opt.n_blocks, n_layers=opt.n_layers, deep=opt.Gdeep,kernel_type=opt.kernel_type)
+        # Generator network
+        self.netG = Generator_Adain_Upsample(input_nc=3, output_nc=3, latent_size=512, n_blocks=9, deep=False)
         self.netG.cuda()
 
         # Id network
@@ -70,7 +51,7 @@ class fsModel(BaseModel):
         self.netArc.eval()
         self.netArc.requires_grad_(False)
         if not self.isTrain:
-            pretrained_path =  opt.checkpoints_dir
+            pretrained_path =  opt.load_pretrain
             self.load_network(self.netG, 'G', opt.which_epoch, pretrained_path)
             return
         self.netD = ProjectedDiscriminator(diffaug=False, interp224=False, **{})
@@ -110,11 +91,11 @@ class fsModel(BaseModel):
 
 
 
-    def save(self, which_epoch, overlap = False):
-        self.save_network(self.netG, 'G', which_epoch if not overlap else 0)
-        self.save_network(self.netD, 'D', which_epoch if not overlap else 0)
-        self.save_optim(self.optimizer_G, 'G', which_epoch if not overlap else 0)
-        self.save_optim(self.optimizer_D, 'D', which_epoch if not overlap else 0)
+    def save(self, which_epoch):
+        self.save_network(self.netG, 'G', which_epoch)
+        self.save_network(self.netD, 'D', which_epoch)
+        self.save_optim(self.optimizer_G, 'G', which_epoch)
+        self.save_optim(self.optimizer_D, 'D', which_epoch)
         '''if self.gen_features:
             self.save_network(self.netE, 'E', which_epoch, self.gpu_ids)'''
 
@@ -137,27 +118,5 @@ class fsModel(BaseModel):
         if self.opt.verbose:
             print('update learning rate: %f -> %f' % (self.old_lr, lr))
         self.old_lr = lr
-    
-    def gradinet_penalty_D(self, netD, img_att, img_fake):
-        # interpolate sample
-        bs = img_fake.shape[0]
-        alpha = torch.rand(bs, 1, 1, 1).expand_as(img_fake).cuda()
-        interpolated = Variable(alpha * img_att + (1 - alpha) * img_fake, requires_grad=True)
-        pred_interpolated = netD.forward(interpolated,None)
-        pred_interpolated = pred_interpolated[0]
 
-        # compute gradients
-        grad = torch.autograd.grad(outputs=pred_interpolated,
-                                   inputs=interpolated,
-                                   grad_outputs=torch.ones(pred_interpolated.size()).cuda(),
-                                   retain_graph=True,
-                                   create_graph=True,
-                                   only_inputs=True)[0]
-
-        # penalize gradients
-        grad = grad.view(grad.size(0), -1)
-        grad_l2norm = torch.sqrt(torch.sum(grad ** 2, dim=1))
-        loss_d_gp = torch.mean((grad_l2norm - 1) ** 2)
-
-        return loss_d_gp
 

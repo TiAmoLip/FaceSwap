@@ -60,7 +60,7 @@ def _make_projector(im_res, cout, proj_type, expand=False):
     assert proj_type in [0, 1, 2], "Invalid projection type"
 
     ### Build pretrained feature network
-    model = timm.create_model('tf_efficientnet_lite0', pretrained=False)
+    model = timm.create_model('tf_efficientnet_lite0', pretrained=True)
     pretrained = _make_efficientnet(model)
 
     # determine resolution of feature maps, this is later used to calculate the number

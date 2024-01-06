@@ -39,6 +39,7 @@ if __name__ == '__main__':
         
         pic_a = opt.pic_a_path
         img_a = Image.open(pic_a).convert('RGB')
+        print(cv2.imread(pic_a).shape)
         img_a = transformer_Arcface(img_a)
         img_id = img_a.view(-1, img_a.shape[0], img_a.shape[1], img_a.shape[2])
 
@@ -61,7 +62,7 @@ if __name__ == '__main__':
 
 
         ############## Forward Pass ######################
-        img_fake = model(img_id, img_att, latend_id, latend_id, True)
+        img_fake = model.netG(img_id, latend_id)
 
 
         for i in range(img_id.shape[0]):
@@ -79,8 +80,10 @@ if __name__ == '__main__':
         full = full.permute(1, 2, 0)
         output = full.to('cpu')
         output = np.array(output)
+        print(output.shape)
         output = output[..., ::-1]
-
+        print(output.shape)
         output = output*255
+        
 
         cv2.imwrite(opt.output_path + 'result.jpg', output)

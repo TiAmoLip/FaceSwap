@@ -20,7 +20,7 @@ def _totensor(array):
     img = tensor.transpose(0, 1).transpose(0, 2).contiguous()
     return img.float().div(255)
 
-def video_swap(video_path, target_id_norm_list,source_specific_id_nonorm_list,id_thres, swap_model, detect_model, save_path, temp_results_dir='./temp_results', crop_size=224, no_simswaplogo = False,use_mask =False):
+def video_swap(video_path, target_id_norm_list,source_specific_id_nonorm_list,id_thres, swap_model, detect_model, save_path, model_name, temp_results_dir='./temp_results', crop_size=224, no_simswaplogo = False,use_mask =False):
     video_forcheck = VideoFileClip(video_path)
     if video_forcheck.audio is None:
         no_audio = True
@@ -28,7 +28,7 @@ def video_swap(video_path, target_id_norm_list,source_specific_id_nonorm_list,id
         no_audio = False
 
     del video_forcheck
-
+    print(model_name.replace('.pth',''))
     if not no_audio:
         video_audio_clip = AudioFileClip(video_path)
 
@@ -54,7 +54,7 @@ def video_swap(video_path, target_id_norm_list,source_specific_id_nonorm_list,id
         n_classes = 19
         net = BiSeNet(n_classes=n_classes)
         net.cuda()
-        save_pth = os.path.join('./parsing_model/checkpoint', '79999_iter.pth')
+        save_pth = os.path.join('./parsing_model/checkpoint/512', model_name)
         net.load_state_dict(torch.load(save_pth))
         net.eval()
     else:
@@ -142,5 +142,4 @@ def video_swap(video_path, target_id_norm_list,source_specific_id_nonorm_list,id
         clips = clips.set_audio(video_audio_clip)
 
 
-    clips.write_videofile(save_path,audio_codec='aac')
-
+    clips.write_videofile(save_path+model_name.replace('.pth','.mp4'))

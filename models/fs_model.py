@@ -67,7 +67,7 @@ class fsModel(BaseModel):
         self.netArc.eval()
 
         if not self.isTrain:
-            pretrained_path = '' if not self.isTrain else opt.load_pretrain
+            pretrained_path = opt.load_pretrain
             self.load_network(self.netG, 'G', opt.which_epoch, pretrained_path)
             return
 
@@ -122,8 +122,8 @@ class fsModel(BaseModel):
         bs = img_fake.shape[0]
         alpha = torch.rand(bs, 1, 1, 1).expand_as(img_fake).cuda()
         interpolated = Variable(alpha * img_att + (1 - alpha) * img_fake, requires_grad=True)
-        pred_interpolated = netD.forward(interpolated,None)
-        pred_interpolated = pred_interpolated[0]
+        pred_interpolated = netD.forward(interpolated)
+        pred_interpolated = pred_interpolated[-1]
 
         # compute gradients
         grad = torch.autograd.grad(outputs=pred_interpolated,

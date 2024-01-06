@@ -1,9 +1,0 @@
-torch
-torchvision
-opencv-python
-pillow
-numpy
-imageio
-moviepy
-insightface
-timm==0.5.4
