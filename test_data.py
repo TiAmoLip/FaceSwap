@@ -6,6 +6,8 @@ from PIL import Image
 from torch.utils import data
 from torchvision import transforms as T
 import torch.nn.functional as F
+from insightface_func.face_detect_crop_single import Face_detect_crop
+import numpy as np
 
 class data_prefetcher():
     def __init__(self, loader):
@@ -62,9 +64,11 @@ class SwappingDataset(data.Dataset):
         for _,_,files in os.walk(dataroot):
             self.files = files
         self.random_seed    = random_seed
+        self.crop_size = 512
         #self.preprocess()
         #self.num_images = len(self.dataset)
-
+        #self.app = Face_detect_crop(name='antelope', root='./insightface_func/models')
+        #self.app.prepare(ctx_id= 0, det_thresh=0.6, det_size=(640,640),mode='ffhq')
     def preprocess(self):
         """Preprocess the Swapping dataset."""
         print("processing Swapping dataset images...")
@@ -89,12 +93,16 @@ class SwappingDataset(data.Dataset):
             id = str(index) if index >= 10 else '0' + str(index)
             if file.find(id) != -1:
                 if file.find('source') != -1:
-                    self.image_dir = os.path.join(self.dataroot,file)
-                else:
                     self.image_dir1 = os.path.join(self.dataroot,file)
-        image1      = self.img_transform(Image.open(self.image_dir).convert('RGB'))
+                else:
+                    self.image_dir = os.path.join(self.dataroot,file)
+        #image1,_ = self.app.get(np.asarray(Image.open(self.image_dir).convert('RGB')),self.crop_size)
+        image1 = Image.open(self.image_dir).convert('RGB')
+        image1      = self.img_transform(image1)
         #image1 =    F.interpolate(image1.view(1,image1.size()[0],image1.size()[1],image1.size()[2]),size=(224,224), mode='bicubic').view(image1.size()[0],224,224)
-        image2      = self.img_transform(Image.open(self.image_dir1).convert('RGB'))
+        #image2,_ = self.app.get(np.asarray(Image.open(self.image_dir1).convert('RGB')),self.crop_size)
+        image2 = Image.open(self.image_dir1).convert('RGB')
+        image2      = self.img_transform(image2)
         #image2 =    F.interpolate(image2.view(1,image2.size()[0],image2.size()[1],image2.size()[2]),size=(224,224), mode='bicubic').view(image2.size()[0],224,224)
         return image1, image2, index
     
@@ -123,6 +131,6 @@ def GetLoader(  dataroot,
                             "jpg",
                             random_seed)
     content_data_loader = data.DataLoader(dataset=content_dataset,batch_size=batch_size,
-                    drop_last=False,shuffle=True,num_workers=num_workers,pin_memory=True)
+                    drop_last=False,shuffle=False,num_workers=num_workers,pin_memory=False)
     prefetcher = data_prefetcher(content_data_loader)
     return prefetcher
