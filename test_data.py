@@ -55,7 +55,8 @@ class SwappingDataset(data.Dataset):
                     dataroot,
                     img_transform,
                     subffix='jpg',
-                    random_seed=1234):
+                    random_seed=1234,
+                    if_cut = True):
         """Initialize and preprocess the Swapping dataset."""
         self.dataroot = dataroot
         self.img_transform  = img_transform   
@@ -67,8 +68,10 @@ class SwappingDataset(data.Dataset):
         self.crop_size = 512
         #self.preprocess()
         #self.num_images = len(self.dataset)
-        #self.app = Face_detect_crop(name='antelope', root='./insightface_func/models')
-        #self.app.prepare(ctx_id= 0, det_thresh=0.6, det_size=(640,640),mode='ffhq')
+        self.if_cut = if_cut
+        if self.if_cut:
+            self.app = Face_detect_crop(name='antelope', root='./insightface_func/models')
+            self.app.prepare(ctx_id= 0, det_thresh=0.6, det_size=(640,640),mode='ffhq')
     def preprocess(self):
         """Preprocess the Swapping dataset."""
         print("processing Swapping dataset images...")
@@ -96,13 +99,17 @@ class SwappingDataset(data.Dataset):
                     self.image_dir1 = os.path.join(self.dataroot,file)
                 else:
                     self.image_dir = os.path.join(self.dataroot,file)
-        #image1,_ = self.app.get(np.asarray(Image.open(self.image_dir).convert('RGB')),self.crop_size)
-        image1 = Image.open(self.image_dir).convert('RGB')
-        image1      = self.img_transform(image1)
+        if self.if_cut:
+            image1,_ = self.app.get(np.asarray(Image.open(self.image_dir).convert('RGB')),self.crop_size)
+            image1      = self.img_transform(np.array(image1[0]))
+            image2,_ = self.app.get(np.asarray(Image.open(self.image_dir1).convert('RGB')),self.crop_size)
+            image2      = self.img_transform(np.array(image2[0]))
+        else:
+            image1 = Image.open(self.image_dir).convert('RGB')
+            image1      = self.img_transform(image1)
+            image2 = Image.open(self.image_dir1).convert('RGB')
+            image2      = self.img_transform(image2)
         #image1 =    F.interpolate(image1.view(1,image1.size()[0],image1.size()[1],image1.size()[2]),size=(224,224), mode='bicubic').view(image1.size()[0],224,224)
-        #image2,_ = self.app.get(np.asarray(Image.open(self.image_dir1).convert('RGB')),self.crop_size)
-        image2 = Image.open(self.image_dir1).convert('RGB')
-        image2      = self.img_transform(image2)
         #image2 =    F.interpolate(image2.view(1,image2.size()[0],image2.size()[1],image2.size()[2]),size=(224,224), mode='bicubic').view(image2.size()[0],224,224)
         return image1, image2, index
     
@@ -113,7 +120,8 @@ class SwappingDataset(data.Dataset):
 def GetLoader(  dataroot,
                 batch_size=16,
                 dataloader_workers=8,
-                random_seed = 1234
+                random_seed = 1234,
+                if_cut = True
                 ):
     """Build and return a data loader."""
         
@@ -129,7 +137,8 @@ def GetLoader(  dataroot,
                             dataroot,
                             c_transforms,
                             "jpg",
-                            random_seed)
+                            random_seed,
+                            if_cut)
     content_data_loader = data.DataLoader(dataset=content_dataset,batch_size=batch_size,
                     drop_last=False,shuffle=False,num_workers=num_workers,pin_memory=False)
     prefetcher = data_prefetcher(content_data_loader)
