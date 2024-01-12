@@ -246,7 +246,7 @@ class AADResBlock(nn.Module):
 #     if init_AAD_layer:
 #         return AADResBlock(h_inchannel,z_inchannel,latent_size=latent_size)
         
-class simplifiedGenerator(nn.Module):
+class ShifterGenerator(nn.Module):
     def __init__(self,input_layers = 5, output_layers= 5, latent_size=512, n_blocks=6,
                 norm_layer=nn.InstanceNorm2d,deep=True,
                 padding_type='reflect',init_channels=32,kernel_type="ordinary") -> None:
@@ -314,7 +314,7 @@ class simplifiedGenerator(nn.Module):
         x = self.first_layer(x)
         x_attrs = []
         for i in range(len(self.down)):
-            # deep会额外进行一次下采样，那么此时我应该拿
+
             
             x = self.down[f'layer_{i}'](x)
             if i>=self.input_layers-2 and i>=2+self.deep:

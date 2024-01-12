@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from .base_model import BaseModel
-from .fs_networks_fix import Generator_Adain_Upsample,simplifiedGenerator
+from .fs_networks_fix import Generator_Adain_Upsample,ShifterGenerator
 from .custom_network import DeformConvGenerator,DancerGenerator
 from pg_modules.projected_discriminator import ProjectedDiscriminator
 
@@ -46,7 +46,7 @@ class fsModel(BaseModel):
         elif opt.model_name=="dancer":
             self.netG = DancerGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks, kernel_type=opt.kernel_type)
         elif opt.model_name == "simplified":
-            self.netG = simplifiedGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,init_channels=opt.init_channels,kernel_type=opt.kernel_type,deep=opt.Gdeep)
+            self.netG = ShifterGenerator(opt.n_layers, opt.n_layers, latent_size=512, n_blocks=opt.n_blocks,init_channels=opt.init_channels,kernel_type=opt.kernel_type,deep=opt.Gdeep)
         else:
             self.netG = None
         
