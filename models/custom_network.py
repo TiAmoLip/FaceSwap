@@ -193,7 +193,7 @@ class DancerGeneratorDecoder(nn.Module):
         return x
 
 class DancerGenerator(nn.Module):
-    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=6, norm_layer=InstanceNorm(),padding_type='reflect',
+    def __init__(self, enc_layers, dec_layers, latent_size=512, n_blocks=3, norm_layer=InstanceNorm(),padding_type='reflect',
                  kernel_type="ordinary") -> None:
         assert (n_blocks >= 0)
         super(DancerGenerator, self).__init__()
