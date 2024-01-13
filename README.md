@@ -16,3 +16,5 @@ Run deform:
 ```bash
 python train.py --model_name simswap+=+ --name simswap --dataset /kaggle/working/TrainingData/vggface2_crop_arcfacealign_224 --lambda_gp 0 --n_blocks 6 --n_layers 3 --model_freq 20000 --total_step 100000 --kernel_type deform
 ```
+
+In the wandb page, there are different running environments. You can find it by group the runs by batchSize. 4 is on Colab, with this repo, and 8 is on another group member's server, with the original simswap repo.
