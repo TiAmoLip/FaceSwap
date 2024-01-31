@@ -1,6 +1,6 @@
 This repo is for the final project of Machine Learning in 2023 based on Simswap
 
-We provide several models for face swap, including Deform, dancer, shifter
+We provide several models for face swap, including Deform, dancer, shifter(the results may be discouraging... perhaps we have no enough computation resources to train longer steps)
 
 Run dancer:
 ```bash
